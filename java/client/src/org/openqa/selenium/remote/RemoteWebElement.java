@@ -17,7 +17,9 @@
 
 package org.openqa.selenium.remote;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Resources;
 
 import org.openqa.selenium.Beta;
 import org.openqa.selenium.By;
@@ -46,6 +48,7 @@ import org.openqa.selenium.io.Zip;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +56,6 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
                                          FindsByTagName, FindsByClassName, FindsByCssSelector,
                                          FindsByXPath, WrapsDriver, Locatable, HasIdentity,
                                          TakesScreenshot {
-
   private String foundBy;
   protected String id;
   protected RemoteWebDriver parent;
@@ -146,13 +148,33 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
   }
 
   public String getAttribute(String name) {
-    Object value =
-        execute(DriverCommand.GET_ELEMENT_ATTRIBUTE, ImmutableMap.of("id", id, "name", name))
-            .getValue();
-    if (value == null) {
+    if (parent.getW3CStandardComplianceLevel() == 0) {
+      return stringValueOf(
+          execute(DriverCommand.GET_ELEMENT_ATTRIBUTE, ImmutableMap.of("id", id, "name", name))
+          .getValue());
+    }
+
+    // Read the atom, wrap it, execute it.
+    try {
+      String scriptName = "getAttribute.js";
+      URL url = getClass().getResource(scriptName);
+
+      String rawFunction = Resources.toString(url, Charsets.UTF_8);
+      String script = String.format(
+        "function() { return (%s).apply(null, arguments);}",
+        rawFunction);
+      return (String) parent.executeScript(script, this, name);
+
+    } catch (IOException | NullPointerException e) {
+      throw new WebDriverException(e);
+    }
+  }
+
+  private static String stringValueOf(Object o) {
+    if (o == null) {
       return null;
     }
-    return String.valueOf(value);
+    return String.valueOf(o);
   }
 
   public boolean isSelected() {
@@ -230,17 +252,15 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
   public WebElement findElementById(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElement("id", using);
-    } else {
-      return findElementByCssSelector("#" + RemoteWebDriver.cssEscape(using));
     }
+    return findElementByCssSelector("#" + RemoteWebDriver.cssEscape(using));
   }
 
   public List<WebElement> findElementsById(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElements("id", using);
-    } else {
-      return findElementsByCssSelector("#" + RemoteWebDriver.cssEscape(using));
     }
+    return findElementsByCssSelector("#" + RemoteWebDriver.cssEscape(using));
   }
 
   public WebElement findElementByLinkText(String using) {
@@ -254,33 +274,29 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
   public WebElement findElementByName(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElement("name", using);
-    } else {
-      return findElementByCssSelector("*[name='" + using + "']");
     }
+    return findElementByCssSelector("*[name='" + using + "']");
   }
 
   public List<WebElement> findElementsByName(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElements("name", using);
-    } else {
-      return findElementsByCssSelector("*[name='" + using + "']");
     }
+    return findElementsByCssSelector("*[name='" + using + "']");
   }
 
   public WebElement findElementByClassName(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElement("class name", using);
-    } else {
-      return findElementByCssSelector("." + RemoteWebDriver.cssEscape(using));
     }
+    return findElementByCssSelector("." + RemoteWebDriver.cssEscape(using));
   }
 
   public List<WebElement> findElementsByClassName(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElements("class name", using);
-    } else {
-      return findElementsByCssSelector("." + RemoteWebDriver.cssEscape(using));
     }
+    return findElementsByCssSelector("." + RemoteWebDriver.cssEscape(using));
   }
 
   public WebElement findElementByCssSelector(String using) {
@@ -310,17 +326,15 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
   public WebElement findElementByTagName(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElement("tag name", using);
-    } else {
-      return findElementByCssSelector(using);
     }
+    return findElementByCssSelector(using);
   }
 
   public List<WebElement> findElementsByTagName(String using) {
     if (parent.getW3CStandardComplianceLevel() == 0) {
       return findElements("tag name", using);
-    } else {
-      return findElementsByCssSelector(using);
     }
+    return findElementsByCssSelector(using);
   }
 
   protected Response execute(String command, Map<String, ?> parameters) {
@@ -421,15 +435,12 @@ public class RemoteWebElement implements WebElement, FindsByLinkText, FindsById,
           @SuppressWarnings("unchecked")
           Map<String, Number> mapped = (Map<String, Number>) response.getValue();
           return new Point(mapped.get("x").intValue(), mapped.get("y").intValue());
-
-        } else {
-          @SuppressWarnings("unchecked")
-          Map<String, Number> mapped = (Map<String, Number>) parent.executeScript(
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Number> mapped = (Map<String, Number>) parent.executeScript(
             "return arguments[0].getBoundingClientRect()", RemoteWebElement.this);
 
-          return new Point(mapped.get("x").intValue(), mapped.get("y").intValue());
-        }
-
+        return new Point(mapped.get("x").intValue(), mapped.get("y").intValue());
       }
 
       public Point onPage() {
