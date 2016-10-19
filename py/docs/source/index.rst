@@ -27,7 +27,7 @@ Supported Python Versions
 =========================
 
 * Python 2.6, 2.7
-* Python 3.2+
+* Python 3.3+
 
 Installing
 ==========
@@ -36,11 +36,31 @@ If you have `pip <http://www.pip-installer.org>`_ on your system, you can simply
 
     pip install -U selenium
 
-Alternately, you can download the source distribution from `PyPI <http://pypi.python.org/pypi/selenium>`_ (e.g. selenium-3.0.0.b2.tar.gz), unarchive it, and run::
+Alternately, you can download the source distribution from `PyPI <http://pypi.python.org/pypi/selenium>`_ (e.g. selenium-3.0.1.tar.gz), unarchive it, and run::
 
     python setup.py install
 
-Note: both of the methods described above install `selenium` as a system-wide package  That will require administrative/root access to ther machine.  You may consider using a `virtualenv <http://www.virtualenv.org/>`_ to create isolated Python environments instead.
+Note: both of the methods described above install `selenium` as a system-wide package  That will require administrative/root access to their machine.  You may consider using a `virtualenv <http://www.virtualenv.org/>`_ to create isolated Python environments instead.
+
+Drivers
+=======
+
+Selenium requires a driver to interface with the chosen browser. Firefox,
+for example, requires `geckodriver <https://github.com/mozilla/geckodriver/releases>`_, which needs to be installed before the below examples can be run. Make sure it's in your `PATH`, e. g., place it in `/usr/bin` or `/usr/local/bin`.
+
+Failure to observe this step will give you an error `selenium.common.exceptions.WebDriverException: Message: 'geckodriver' executable needs to be in PATH.`
+
+Other supported browsers will have their own drivers available. Links to some of the more popular browser drivers follow.
+
++--------------+-----------------------------------------------------------------------+
+| **Chrome**:  | https://sites.google.com/a/chromium.org/chromedriver/downloads        |
++--------------+-----------------------------------------------------------------------+
+| **Edge**:    | https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/ |
++--------------+-----------------------------------------------------------------------+
+| **Firefox**: | https://github.com/mozilla/geckodriver/releases                       |
++--------------+-----------------------------------------------------------------------+
+| **Safari**:  | https://webkit.org/blog/6900/webdriver-support-in-safari-10/          |
++--------------+-----------------------------------------------------------------------+
 
 Example 0:
 ==========
@@ -107,11 +127,11 @@ For normal WebDriver scripts (non-Remote), the Java server is not needed.
 
 However, to use Selenium Webdriver Remote or the legacy Selenium API (Selenium-RC), you need to also run the Selenium server.  The server requires a Java Runtime Environment (JRE).
 
-Download the server separately, from: http://selenium-release.storage.googleapis.com/3.0-beta2/selenium-server-standalone-3.0.0-beta2.jar
+Download the server separately, from: http://selenium-release.storage.googleapis.com/3.0/selenium-server-standalone-3.0.0.jar
 
 Run the server from the command line::
 
-    java -jar selenium-server-standalone-3.0.0-beta2.jar
+    java -jar selenium-server-standalone-3.0.0.jar
 
 Then run your Python client scripts.
 

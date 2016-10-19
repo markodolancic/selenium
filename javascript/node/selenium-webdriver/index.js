@@ -134,6 +134,9 @@ function ensureFileDetectorsAreEnabled(ctor) {
  */
 class Builder {
   constructor() {
+    /** @private @const */
+    this.log_ = logging.getLogger('webdriver.Builder');
+
     /** @private {promise.ControlFlow} */
     this.flow_ = null;
 
@@ -441,6 +444,14 @@ class Builder {
   }
 
   /**
+   * @return {safari.Options} the Safari specific options currently configured
+   *     for this instance.
+   */
+  getSafariOptions() {
+    return this.safariOptions_;
+  }
+
+  /**
    * Sets the control flow that created drivers should execute actions in. If
    * the flow is never set, or is set to {@code null}, it will use the active
    * flow at the time {@link #build()} is called.
@@ -474,6 +485,7 @@ class Builder {
 
     var browser;
     if (!this.ignoreEnv_ && process.env.SELENIUM_BROWSER) {
+      this.log_.fine(`SELENIUM_BROWSER=${process.env.SELENIUM_BROWSER}`);
       browser = process.env.SELENIUM_BROWSER.split(/:/, 3);
       capabilities.set(Capability.BROWSER_NAME, browser[0]);
       capabilities.set(Capability.VERSION, browser[1] || null);
@@ -516,13 +528,18 @@ class Builder {
     let url = this.url_;
     if (!this.ignoreEnv_) {
       if (process.env.SELENIUM_REMOTE_URL) {
+        this.log_.fine(
+            `SELENIUM_REMOTE_URL=${process.env.SELENIUM_REMOTE_URL}`);
         url = process.env.SELENIUM_REMOTE_URL;
       } else if (process.env.SELENIUM_SERVER_JAR) {
+        this.log_.fine(
+            `SELENIUM_SERVER_JAR=${process.env.SELENIUM_SERVER_JAR}`);
         url = startSeleniumServer(process.env.SELENIUM_SERVER_JAR);
       }
     }
 
     if (url) {
+      this.log_.fine('Creating session on remote server');
       let client = Promise.resolve(url)
           .then(url => new _http.HttpClient(url, this.agent_, this.proxy_));
       let executor = new _http.Executor(client);
@@ -599,12 +616,15 @@ exports.Button = input.Button;
 exports.By = by.By;
 exports.Capabilities = capabilities.Capabilities;
 exports.Capability = capabilities.Capability;
+exports.Condition = webdriver.Condition;
 exports.EventEmitter = events.EventEmitter;
 exports.FileDetector = input.FileDetector;
 exports.Key = input.Key;
 exports.Session = session.Session;
+exports.TouchSequence = actions.TouchSequence;
 exports.WebDriver = webdriver.WebDriver;
 exports.WebElement = webdriver.WebElement;
+exports.WebElementCondition = webdriver.WebElementCondition;
 exports.WebElementPromise = webdriver.WebElementPromise;
 exports.error = error;
 exports.logging = logging;

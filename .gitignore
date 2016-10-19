@@ -45,12 +45,16 @@ java/client/build/
 java/client/log.txt
 java/client/iedriver.log
 java/server/build/
+__pycache__
+.tox
 *.pyc
 dist/
 py/selenium/webdriver/firefox/amd64/
 py/selenium/webdriver/firefox/webdriver.xpi
 py/selenium/webdriver/firefox/webdriver_prefs.json
 py/selenium/webdriver/firefox/x86/
+py/selenium/webdriver/remote/getAttribute.js
+py/selenium/webdriver/remote/isDisplayed.js
 py/docs/build/
 selenium.egg-info/
 third_party/java/jetty/jetty-repacked.jar
@@ -69,6 +73,7 @@ ipch/
 /iedriver.log
 /phantomjsdriver.log
 geckodriver.log
+ghostdriver.log
 .tags
 .ruby-version
 GPATH

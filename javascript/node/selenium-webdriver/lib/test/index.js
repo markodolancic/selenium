@@ -24,6 +24,7 @@ var build = require('./build'),
     webdriver = require('../../'),
     flow = webdriver.promise.controlFlow(),
     firefox = require('../../firefox'),
+    safari = require('../../safari'),
     remote = require('../../remote'),
     testing = require('../../testing'),
     fileserver = require('./fileserver');
@@ -229,11 +230,6 @@ function suite(fn, opt_options) {
           if (browser === LEGACY_FIREFOX) {
             testing.before(function() {
               return build.of('//javascript/firefox-driver:webdriver')
-                  .onlyOnce().go();
-            });
-          } else if (browser === webdriver.Browser.SAFARI) {
-            testing.before(function() {
-              return build.of('//javascript/safari-driver:client')
                   .onlyOnce().go();
             });
           }

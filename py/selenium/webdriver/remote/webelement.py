@@ -15,25 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import base64
 import hashlib
+import pkgutil
 import os
 import zipfile
-try:
-    from StringIO import StringIO as IOStream
-except ImportError:  # 3+
-    from io import BytesIO as IOStream
-import base64
 
 from .command import Command
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.utils import keys_to_typing
 
-
+# Python 3 imports
 try:
     str = basestring
 except NameError:
     pass
+
+try:
+    from StringIO import StringIO as IOStream
+except ImportError:  # 3+
+    from io import BytesIO as IOStream
+
+getAttribute_js = pkgutil.get_data(__package__, 'getAttribute.js').decode('utf8')
+isDisplayed_js = pkgutil.get_data(__package__, 'isDisplayed.js').decode('utf8')
 
 
 class WebElement(object):
@@ -47,11 +52,6 @@ class WebElement(object):
     element is still attached to the DOM.  If this test fails, then an
     ``StaleElementReferenceException`` is thrown, and all future calls to this
     instance will fail."""
-
-    boolean_attributes = ['default', 'typemustmatch', 'checked', 'defer', 'async', 'muted',
-                          'reversed', 'required', 'controls', 'ismap', 'disabled', 'novalidate',
-                          'readonly', 'allowfullscreen', 'selected', 'formnovalidate',
-                          'multiple', 'autofocus', 'open', 'loop', 'autoplay']
 
     def __init__(self, parent, id_, w3c=False):
         self._parent = parent
@@ -133,28 +133,10 @@ class WebElement(object):
         """
 
         attributeValue = ''
-        if self._w3c :
-            if name == 'style':
-                return self.parent.execute_script("return arguments[0].style.cssText", self)
-            attributeValue = self.get_property(name)
-            if (attributeValue in [None, '', False] and name != 'value') or name in self.boolean_attributes:
-                # We need to check the attribute before we really set it to None
-                resp = self._execute(Command.GET_ELEMENT_ATTRIBUTE, {'name': name})
-                attributeValue = resp.get('value')
-
-                # Even though we have a value, we could be getting the browser default,
-                # We now need check it's there in the DOM...
-                resp = self.parent.execute_script("return arguments[0].hasAttribute(arguments[1])",
-                                                  self, name)
-                if resp is False:
-                    attributeValue = None
-            else:
-                attributeValue = "{0}".format(attributeValue)
-
-            if attributeValue is not None:
-                if name != 'value' and attributeValue.lower() in ('true', 'false'):
-                    attributeValue = attributeValue.lower()
-
+        if self._w3c:
+            attributeValue = self.parent.execute_script(
+                "return (%s).apply(null, arguments);" % getAttribute_js,
+                self, name)
         else:
             resp = self._execute(Command.GET_ELEMENT_ATTRIBUTE, {'name': name})
             attributeValue = resp.get('value')
@@ -367,7 +349,13 @@ class WebElement(object):
     # RenderedWebElement Items
     def is_displayed(self):
         """Whether the element is visible to a user."""
-        return self._execute(Command.IS_ELEMENT_DISPLAYED)['value']
+        # Only go into this conditional for browsers that don't use the atom themselves
+        if self._w3c and self.parent.capabilities['browserName'] == 'safari':
+            return self.parent.execute_script(
+                "return (%s).apply(null, arguments);" % isDisplayed_js,
+                self)
+        else:
+            return self._execute(Command.IS_ELEMENT_DISPLAYED)['value']
 
     @property
     def location_once_scrolled_into_view(self):

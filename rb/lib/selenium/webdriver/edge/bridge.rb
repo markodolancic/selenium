@@ -26,27 +26,18 @@ module Selenium
 
       class Bridge < Remote::W3CBridge
         def initialize(opts = {})
-          http_client = opts.delete(:http_client)
-
-          if opts.key?(:url)
-            url = opts.delete(:url)
-          else
-            @service = Service.new(Edge.driver_path, Service::DEFAULT_PORT, *extract_service_args(opts))
+          port = opts.delete(:port) || Service::DEFAULT_PORT
+          service_args = opts.delete(:service_args) || {}
+          unless opts.key?(:url)
+            @service = Service.new(Edge.driver_path, port, *extract_service_args(service_args))
             @service.host = 'localhost' if @service.host == '127.0.0.1'
             @service.start
-
-            url = @service.uri
+            opts[:url] = @service.uri
           end
 
-          caps = create_capabilities(opts)
+          opts[:desired_capabilities] ||= Remote::W3CCapabilities.edge
 
-          remote_opts = {
-            url: url,
-            desired_capabilities: caps
-          }
-
-          remote_opts[:http_client] = http_client if http_client
-          super(remote_opts)
+          super(opts)
         end
 
         def browser
@@ -72,27 +63,12 @@ module Selenium
 
         private
 
-        def create_capabilities(opts)
-          caps               = opts.delete(:desired_capabilities) { Remote::W3CCapabilities.edge }
-          page_load_strategy = opts.delete(:page_load_strategy) || 'normal'
-
-          unless opts.empty?
-            raise ArgumentError, "unknown option#{'s' if opts.size != 1}: #{opts.inspect}"
-          end
-
-          caps['page_load_strategy'] = page_load_strategy
-
-          caps
-        end
-
-        def extract_service_args(opts)
-          args = []
-
-          if opts.key?(:service_log_path)
-            args << "--log-path=#{opts.delete(:service_log_path)}"
-          end
-
-          args
+        def extract_service_args(args = {})
+          service_args = []
+          service_args << "–host=#{args[:host]}" if args.key? :host
+          service_args << "–package=#{args[:package]}" if args.key? :package
+          service_args << "-verbose" if args[:verbose] == true
+          service_args
         end
       end # Bridge
     end # Edge

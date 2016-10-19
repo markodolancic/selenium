@@ -26,6 +26,7 @@ import static org.openqa.selenium.WaitingConditions.newWindowIsOpened;
 import static org.openqa.selenium.WaitingConditions.pageSourceToContain;
 import static org.openqa.selenium.support.ui.ExpectedConditions.titleIs;
 import static org.openqa.selenium.testing.Driver.CHROME;
+import static org.openqa.selenium.testing.Driver.FIREFOX;
 import static org.openqa.selenium.testing.Driver.IE;
 import static org.openqa.selenium.testing.Driver.MARIONETTE;
 import static org.openqa.selenium.testing.Driver.SAFARI;
@@ -215,6 +216,7 @@ public class ClickTest extends JUnit4TestBase {
   }
 
   @Test
+  @Ignore(value = MARIONETTE)
   public void testCanClickOnALinkThatContainsEmbeddedBlockElements() {
     assumeFalse(
         "Fails on Android phones: https://code.google.com/p/chromedriver/issues/detail?id=1022",
@@ -269,7 +271,7 @@ public class ClickTest extends JUnit4TestBase {
   }
 
   @Test
-  @Ignore(value = {MARIONETTE})
+  @Ignore(value = {FIREFOX, MARIONETTE})
   public void testShouldBeAbleToClickOnAnElementGreaterThanTwoViewports() {
     String url = appServer.whereIs("click_too_big.html");
     driver.get(url);

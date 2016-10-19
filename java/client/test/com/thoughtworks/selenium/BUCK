@@ -1,5 +1,19 @@
 
 java_test(
+  name = 'chrome-rc-test',
+  srcs = [
+    'WebDriverSeleniumTestSuite.java',
+  ],
+  vm_args = [
+    '-Dselenium.browser=chrome',
+  ],
+  deps = [
+    ':tests',
+    '//third_party/java/junit:junit',
+  ],
+)
+
+java_test(
   name = 'firefox-rc-test',
   srcs = [
     'WebDriverSeleniumTestSuite.java',
@@ -55,6 +69,6 @@ java_library(
     '//third_party/java/servlet:servlet-api',
   ],
   visibility = [
-    '//java/server/test/org/openqa/selenium/server/htmlrunner:htmlrunner',
+    '//java/server/test/org/openqa/selenium/server/htmlrunner:',
   ],
 )

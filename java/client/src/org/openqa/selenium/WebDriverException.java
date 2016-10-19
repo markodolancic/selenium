@@ -17,12 +17,12 @@
 
 package org.openqa.selenium;
 
+import org.openqa.selenium.internal.BuildInfo;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.openqa.selenium.internal.BuildInfo;
 
 public class WebDriverException extends RuntimeException {
 

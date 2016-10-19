@@ -29,7 +29,7 @@ for scheme in INSTALL_SCHEMES.values():
 setup_args = {
     'cmdclass': {'install': install},
     'name': 'selenium',
-    'version': "3.0.0.b2",
+    'version': "3.0.1",
     'description': 'Python bindings for Selenium',
     'long_description':open(join(abspath(dirname(__file__)), "py", "README.rst")).read(),
     'url': 'https://github.com/SeleniumHQ/selenium/',
@@ -50,19 +50,10 @@ setup_args = {
     'package_dir': {
         'selenium': 'py/selenium',
         'selenium.common': 'py/selenium/common',
-        'selenium.test': 'py/test',
-        'selenium.test.selenium': 'py/test/selenium',
         'selenium.webdriver': 'py/selenium/webdriver',
     },
     'packages': ['selenium',
                  'selenium.common',
-                 'selenium.test',
-                 'selenium.test.selenium',
-                 'selenium.test.selenium.common',
-                 'selenium.test.selenium.webdriver',
-                 'selenium.test.selenium.webdriver.common',
-                 'selenium.test.selenium.webdriver.ie',
-                 'selenium.test.selenium.webdriver.support',
                  'selenium.webdriver',
                  'selenium.webdriver.android',
                  'selenium.webdriver.chrome',
@@ -78,9 +69,12 @@ setup_args = {
                  'selenium.webdriver.support', ],
     'package_data': {
         'selenium.webdriver.firefox': ['*.xpi', 'webdriver_prefs.json'],
+        'selenium.webdriver.remote': ['getAttribute.js', 'isDisplayed.js'],
     },
     'data_files': [('selenium/webdriver/firefox/x86', ['py/selenium/webdriver/firefox/x86/x_ignore_nofocus.so']),
-                   ('selenium/webdriver/firefox/amd64', ['py/selenium/webdriver/firefox/amd64/x_ignore_nofocus.so'])],
+                   ('selenium/webdriver/firefox/amd64', ['py/selenium/webdriver/firefox/amd64/x_ignore_nofocus.so']),
+                   ('selenium/webdriver/remote', ['py/selenium/webdriver/remote/getAttribute.js']),
+                   ('selenium/webdriver/remote', ['py/selenium/webdriver/remote/isDisplayed.js'])],
     'include_package_data': True,
     'zip_safe': False
 }

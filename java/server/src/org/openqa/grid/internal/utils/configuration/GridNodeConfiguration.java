@@ -17,114 +17,159 @@
 
 package org.openqa.grid.internal.utils.configuration;
 
-import com.google.gson.Gson;
+import com.google.common.reflect.TypeToken;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.TypeAdapter;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
+import com.google.gson.annotations.Expose;
 
 import com.beust.jcommander.Parameter;
 
+import org.openqa.grid.common.JSONConfigurationUtils;
 import org.openqa.grid.common.exception.GridConfigurationException;
 import org.openqa.grid.internal.utils.configuration.converters.BrowserDesiredCapabilityConverter;
 import org.openqa.grid.internal.utils.configuration.converters.NoOpParameterSplitter;
+import org.openqa.grid.internal.utils.configuration.validators.FileExistsValueValidator;
 import org.openqa.selenium.remote.BeanToJsonConverter;
 import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.remote.JsonToBeanConverter;
 
-import java.io.IOException;
+import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class GridNodeConfiguration extends GridConfiguration {
+  public static final String DEFAULT_NODE_CONFIG_FILE = "defaults/DefaultNodeWebDriver.json";
+
+  /*
+   * config parameters which do not serialize or de-serialize
+   */
+
+  @Parameter(
+    names = "-nodeConfig",
+    description = "<String> filename : JSON configuration file for the node. Overrides default values",
+    validateValueWith = FileExistsValueValidator.class
+  )
+  public String nodeConfigFile;
+
+  /*
+   * config parameters which do not serialize to json
+   */
 
   // remoteHost is a generated value based on host / port specified, or read from JSON.
+  @Expose( serialize = false )
   String remoteHost;
 
-  @Parameter(
-    names = "-id",
-    description = "<String> : unique identifier for the node. Not required--by default, grid will use the url of the remoteHost"
-  )
-  public String id;
+  // used to read a Selenium 2.x nodeConfig.json file and throw a friendly exception
+  @Expose( serialize = false )
+  @Deprecated
+  private Object configuration;
 
-  @Parameter(
-    names = "-browser",
-    description = "<String> : comma separated Capability values. Example: -browser browserName=firefox,platform=linux -browser browserName=chrome,platform=linux",
-    listConverter = BrowserDesiredCapabilityConverter.class,
-    converter = BrowserDesiredCapabilityConverter.class,
-    splitter = NoOpParameterSplitter.class
-  )
-  public List<DesiredCapabilities> browser = Arrays.asList();
+  /*
+   * config parameters which serialize and deserialize to/from json
+   */
 
-  @Parameter(
-    names = "-downPollingLimit",
-    description = "<Integer> : node is marked as \"down\" if the node hasn't responded after the number of checks specified in [downPollingLimit]. Default is 2"
-  )
-  public Integer downPollingLimit;
-
-  @Parameter(
-    names = "-hub",
-    description = "<String> (e.g. http://localhost:4444/grid/register) : the url that will be used to post the registration request. This option takes precedence over -hubHost and -hubPort options"
-  )
-  public String hub;
-
+  @Expose
   @Parameter(
     names = "-hubHost",
     description = "<String> IP or hostname : the host address of the hub we're attempting to register with. If \"role\" is set to [hub], this option will be ignored. Default is localhost"
   )
   String hubHost;
 
+  @Expose
   @Parameter(
     names = "-hubPort",
     description = "<Integer> : the port of the hub we're attempting to register with. If \"role\" is set to [hub], this option will be ignored. Default to 4444"
   )
   Integer hubPort;
 
+  @Expose
   @Parameter(
-    names = "-nodeConfig",
-    description = "<String> filename : JSON configuration file for the node. Overrides default values"
+    names = "-id",
+    description = "<String> : optional unique identifier for the node. Defaults to the url of the remoteHost"
   )
-  public String nodeConfigFile;
+  public String id;
 
+  @Expose
+  @Parameter(
+    names = { "-capabilities", "-browser" },
+    description = "<String> : comma separated Capability values. Example: -capabilities browserName=firefox,platform=linux -capabilities browserName=chrome,platform=linux",
+    listConverter = BrowserDesiredCapabilityConverter.class,
+    converter = BrowserDesiredCapabilityConverter.class,
+    splitter = NoOpParameterSplitter.class
+  )
+  public List<DesiredCapabilities> capabilities = new ArrayList<>();
+
+  @Expose
+  @Parameter(
+    names = "-downPollingLimit",
+    description = "<Integer> : node is marked as \"down\" if the node hasn't responded after the number of checks specified in [downPollingLimit]. Default is 2"
+  )
+  public Integer downPollingLimit;
+
+  @Expose
+  @Parameter(
+    names = "-hub",
+    description = "<String> (e.g. http://localhost:4444/grid/register) : the url that will be used to post the registration request. This option takes precedence over -hubHost and -hubPort options"
+  )
+  public String hub;
+
+  @Expose
   @Parameter(
     names = "-nodePolling",
     description = "<Integer> in ms : specifies how often the hub will poll to see if the node is still responding"
   )
   public Integer nodePolling;
 
+  @Expose
   @Parameter(
     names = "-nodeStatusCheckTimeout",
     description = "<Integer> in ms : connection/socket timeout, used for node \"nodePolling\" check"
   )
   public Integer nodeStatusCheckTimeout = 5000;
 
+  @Expose
   @Parameter(
     names = "-proxy",
     description = "<String> : the class used to represent the node proxy. Default is [org.openqa.grid.selenium.proxy.DefaultRemoteProxy]"
   )
   public String proxy;
 
+  @Expose
   @Parameter(
     names = "-register",
     description = "if specified, node will attempt to re-register itself automatically with its known grid hub if the hub becomes unavailable. Default is disabled"
   )
   public Boolean register;
 
+  @Expose
   @Parameter(
     names = "-registerCycle",
     description = "<Integer> in ms : specifies how often the node will try to register itself again. Allows administrator to restart the hub without restarting (or risk orphaning) registered nodes. Must be specified with the \"-register\" option"
   )
-  public Integer registerCycle;
+  public Integer registerCycle = 5000;
 
+  @Expose
   @Parameter(
     names = "-unregisterIfStillDownAfter",
-    description = "<Integer> in ms : if the node remains down for more than [unregisterIfStillDownAfter] ms, it will step attempting to re-register from the hub. Default is 6000 (1 minute)"
+    description = "<Integer> in ms : if the node remains down for more than [unregisterIfStillDownAfter] ms, it will stop attempting to re-register from the hub. Default is 6000 (1 minute)"
   )
   public Integer unregisterIfStillDownAfter;
+
+  /**
+   * Init with built-in defaults
+   */
+  public GridNodeConfiguration() {
+    role = "node";
+  }
 
   public String getHubHost() {
     if (hubHost == null) {
@@ -171,52 +216,54 @@ public class GridNodeConfiguration extends GridConfiguration {
 
   public void merge(GridNodeConfiguration other) {
     super.merge(other);
-    if (other.browser != null) {
-      browser = other.browser;
+    if (isMergeAble(other.capabilities, capabilities)) {
+      capabilities = other.capabilities;
     }
-    if (other.downPollingLimit != null) {
+    if (isMergeAble(other.downPollingLimit, downPollingLimit)) {
       downPollingLimit = other.downPollingLimit;
     }
-    if (other.hub != null) {
+    if (isMergeAble(other.hub, hub)) {
       hub = other.hub;
     }
-    if (other.hubHost != null) {
+    if (isMergeAble(other.hubHost, hubHost)) {
       hubHost = other.hubHost;
     }
-    if (other.hubPort != null) {
+    if (isMergeAble(other.hubPort, hubPort)) {
       hubPort = other.hubPort;
     }
-    if (other.id != null) {
+    if (isMergeAble(other.id, id)) {
       id = other.id;
     }
-    if (other.nodePolling != null) {
+    if (isMergeAble(other.nodePolling, nodePolling)) {
       nodePolling = other.nodePolling;
     }
-    if (other.nodeStatusCheckTimeout != null) {
+    if (isMergeAble(other.nodeStatusCheckTimeout, nodeStatusCheckTimeout)) {
       nodeStatusCheckTimeout = other.nodeStatusCheckTimeout;
     }
-    if (other.proxy != null) {
+    if (isMergeAble(other.proxy, proxy)) {
       proxy = other.proxy;
     }
-    if (other.register != null) {
+    if (isMergeAble(other.register, register)) {
       register = other.register;
     }
-    if (other.registerCycle != null) {
+    if (isMergeAble(other.registerCycle, registerCycle)) {
       registerCycle = other.registerCycle;
     }
-    if (other.remoteHost != null) {
+    if (isMergeAble(other.remoteHost, remoteHost)) {
       remoteHost = other.remoteHost;
     }
-    if (other.unregisterIfStillDownAfter != null) {
+    if (isMergeAble(other.unregisterIfStillDownAfter, unregisterIfStillDownAfter)) {
       unregisterIfStillDownAfter = other.unregisterIfStillDownAfter;
     }
+
+    // never merge configuration. it should always be null.
   }
 
   @Override
   public String toString(String format) {
     StringBuilder sb = new StringBuilder();
     sb.append(super.toString(format));
-    sb.append(toString(format, "browser", browser));
+    sb.append(toString(format, "capabilities", capabilities));
     sb.append(toString(format, "downPollingLimit", downPollingLimit));
     sb.append(toString(format, "hub", hub));
     sb.append(toString(format, "id", id));
@@ -234,6 +281,13 @@ public class GridNodeConfiguration extends GridConfiguration {
   }
 
   /**
+   * @param filePath node config json file to load configuration from
+   */
+  public static GridNodeConfiguration loadFromJSON(String filePath) {
+    return loadFromJSON(JSONConfigurationUtils.loadJSON(filePath));
+  }
+
+  /**
    * @param json JsonObject to load configuration from
    */
   public static GridNodeConfiguration loadFromJSON(JsonObject json) {
@@ -241,7 +295,18 @@ public class GridNodeConfiguration extends GridConfiguration {
     try {
       GsonBuilder builder = new GsonBuilder();
       GridNodeConfiguration.staticAddJsonTypeAdapter(builder);
-      return builder.create().fromJson(json, GridNodeConfiguration.class);
+      GridNodeConfiguration config =
+        builder.excludeFieldsWithoutExposeAnnotation().create().fromJson(json, GridNodeConfiguration.class);
+
+      if (config.configuration != null) {
+        // caught below
+        throw new GridConfigurationException("Deprecated -nodeConfig file encountered. Please update"
+                                             + " the file to work with Selenium 3. See https://github.com"
+                                             + "/SeleniumHQ/selenium/wiki/Grid2#configuring-the-nodes-by-json"
+                                             + " for more details.");
+}
+
+      return config;
     } catch (Throwable e) {
       throw new GridConfigurationException("Error with the JSON of the config : " + e.getMessage(),
                                            e);
@@ -253,23 +318,47 @@ public class GridNodeConfiguration extends GridConfiguration {
     super.addJsonTypeAdapter(builder);
     GridNodeConfiguration.staticAddJsonTypeAdapter(builder);
   }
+
   protected static void staticAddJsonTypeAdapter(GsonBuilder builder) {
-    builder.registerTypeAdapter(DesiredCapabilities.class, new DesiredCapabilitiesAdapter().nullSafe());
+    builder.registerTypeAdapter(new TypeToken<List<DesiredCapabilities>>(){}.getType(),
+                                new CollectionOfDesiredCapabilitiesSerializer());
+    builder.registerTypeAdapter(new TypeToken<List<DesiredCapabilities>>(){}.getType(),
+                                new CollectionOfDesiredCapabilitiesDeSerializer());
   }
 
-  protected static class DesiredCapabilitiesAdapter<T> extends TypeAdapter<DesiredCapabilities> {
+  public static class CollectionOfDesiredCapabilitiesSerializer
+    implements JsonSerializer<List<DesiredCapabilities>> {
 
     @Override
-    public void write(JsonWriter jsonWriter, DesiredCapabilities t) throws IOException {
-      jsonWriter.value(String.format("{\"capabilities\":%s}", new BeanToJsonConverter().convert(t.asMap())));
+    public JsonElement serialize(List<DesiredCapabilities> desiredCapabilities, Type type,
+                                 JsonSerializationContext jsonSerializationContext) {
+
+      JsonArray capabilities = new JsonArray();
+      BeanToJsonConverter converter = new BeanToJsonConverter();
+      for (DesiredCapabilities dc : desiredCapabilities) {
+        capabilities.add(converter.convertObject(dc));
+      }
+      return capabilities;
     }
+  }
+
+  public  static class CollectionOfDesiredCapabilitiesDeSerializer
+    implements JsonDeserializer<List<DesiredCapabilities>> {
 
     @Override
-    public DesiredCapabilities read(JsonReader jsonReader) throws IOException {
-      Gson gson = new GsonBuilder().create();
-      Map<String, Map<String, Object>> capability = new HashMap<>();
-      capability = gson.fromJson(jsonReader.nextString(), capability.getClass());
-      return new DesiredCapabilities(capability.get("capabilities"));
+    public List<DesiredCapabilities> deserialize(JsonElement jsonElement, Type type,
+                                                 JsonDeserializationContext jsonDeserializationContext)
+      throws JsonParseException {
+
+      if (jsonElement.isJsonArray()) {
+        List<DesiredCapabilities> desiredCapabilities = new ArrayList<>();
+        JsonToBeanConverter converter = new JsonToBeanConverter();
+        for (JsonElement arrayElement : jsonElement.getAsJsonArray()) {
+          desiredCapabilities.add(converter.convert(DesiredCapabilities.class, arrayElement));
+        }
+        return desiredCapabilities;
+      }
+      throw new JsonParseException("capabilities should be expressed as an array of objects.");
     }
   }
 }

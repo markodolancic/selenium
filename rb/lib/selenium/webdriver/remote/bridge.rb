@@ -62,9 +62,10 @@ module Selenium
         def initialize(opts = {})
           opts = opts.dup
 
+          port = opts.delete(:port) || 4444
           http_client = opts.delete(:http_client) { Http::Default.new }
           desired_capabilities = opts.delete(:desired_capabilities) { Capabilities.firefox }
-          url = opts.delete(:url) { "http://#{Platform.localhost}:4444/wd/hub" }
+          url = opts.delete(:url) { "http://#{Platform.localhost}:#{port}/wd/hub" }
 
           unless opts.empty?
             raise ArgumentError, "unknown option#{'s' if opts.size != 1}: #{opts.inspect}"
@@ -537,7 +538,7 @@ module Selenium
         end
 
         def element_attribute(element, name)
-          execute :getElementAttribute, id: element, name: name
+          execute :getElementAttribute, id: element.ref, name: name
         end
 
         def element_value(element)

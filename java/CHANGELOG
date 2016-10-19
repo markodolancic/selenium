@@ -1,3 +1,86 @@
+v3.0.1
+======
+
+* include ElementScrollBehavior enum in the release 
+* Add dependency on HTMLUnit to be included in the standalone server 
+* Grid new session requests pass original request through to the node
+  without any modifications
+* Fix NPE in htmlrunner when port is not specified
+* FirefoxDriver (legacy) fix to cleanup temp filesystem on quit (#2914 #2908)
+
+v3.0.0
+======
+
+IMPORTANT CHANGES
+
+* Firefox is only fully supported at version 47.0.1 or earlier. Support
+  for later versions of firefox is provided by geckodriver, which is
+  based on the evolving W3C WebDriver spec, and uses the wire protocol
+  in that spec, which is liable to change without notice.
+* You may wish to choose an ESR release such as 45.4.0esr or earlier.
+* Firefox 47.0.0 is not supported at all.
+
+Other major changes:
+
+* Stability fixes in Grid.
+* All Grid nodes can now offer help.
+* Updated to the latest version of HtmlUnitDriver.
+* Re-enabled log gathering for the standalone server.
+* Firefox profile is passed to both the legacy FirefoxDriver and
+  geckodriver.
+
+v3.0.0-beta4
+============
+
+IMPORTANT CHANGES
+
+* Firefox is only fully supported at version 47.0.1 or earlier. Support
+  for later versions of firefox is provided by geckodriver, which is
+  based on the evolving W3C WebDriver spec, and uses the wire protocol
+  in that spec, which is liable to change without notice.
+* You may wish to choose an ESR release such as 45.4.0esr or earlier.
+* Firefox 47.0.0 is not supported at all.
+
+Other major changes:
+
+* Remove OSS safaridriver in preference for Apple's own SafariDriver
+  that ships as part of Safari 10.
+* [Grid] -nodeConfig (json) files have a new flatter format (#2789)
+* [Grid] Fix #2721, -nodeConfig (json) settings were not always 
+  applied
+* [Grid] Cleanup the api for RegistrationRequest -- will break
+  compilation for people moving from 2.x -- removed the ability to
+  change the GridNodeConfiguration reference via the
+  RegistrationRequest object and removed all other setters
+* Include the selenium version in exceptions (again).
+* [HTML suite runner] Better flag compatibility with the 2.x
+  selenium-server-standalone.
+* Fix #2727, combine -jettyThreads and -jettyMaxThreads (#2735)
+* [atoms] Cleaning up getAttribute dependencies, reducing size from
+  36K to 7K
+* Better support for the W3C webdriver wire codec.
+* Added ability to use FirefoxOptions when starting firefox.
+* Fixed a bug where the firefox profile was not being passed to the
+  geckodriver.
+* SafariDriver's Technology Preview can be used if installed.
+
+v3.0.0-beta3
+============
+
+* The HTML table runner can be downloaded as selenium-html-runner.jar.
+* leg-rc jar is no longer bundled into the main selenium jar. Instead,
+  it needs to be downloaded separately.
+* Removed deprecated SessionNotFoundException in favour of the
+  NoSuchSessionException.
+* Added a "protocol handshake" on starting a remote webdriver. We now
+  log the wire dialect spoken (original as "OSS" and the version
+  tracking the W3C spec as "W3C"). This may result in multiple calls
+  to the new session endpoint on local end start up.
+* Removed command names ending with "*w3c" and instead handle this
+  with different codecs.
+* Switch to using atoms for 'getAttribute' and 'isDisplayed' when
+  communicating with a W3C remote end.
+
 v3.0.0-beta2
 ============
 

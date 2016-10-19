@@ -31,7 +31,6 @@ import org.openqa.selenium.UnhandledAlertException;
 import org.openqa.selenium.WebDriverException;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -110,6 +109,11 @@ public class ErrorHandler {
 
     if (value instanceof Map) {
       Map<String, Object> rawErrorData = (Map<String, Object>) value;
+      if (!rawErrorData.containsKey(MESSAGE) && rawErrorData.containsKey("value")) {
+        try {
+          rawErrorData = (Map<String, Object>) rawErrorData.get("value");
+        } catch (ClassCastException cce) {}
+      }
       try {
         message = (String) rawErrorData.get(MESSAGE);
       } catch (ClassCastException e) {
@@ -152,6 +156,12 @@ public class ErrorHandler {
     if (outerErrorType.equals(UnhandledAlertException.class)
         && value instanceof Map) {
       toThrow = createUnhandledAlertException(value);
+    }
+
+    if (toThrow == null) {
+      toThrow = createThrowable(outerErrorType,
+                                new Class<?>[] {String.class, Throwable.class, Integer.class},
+                                new Object[] {message, cause, response.getStatus()});
     }
 
     if (toThrow == null) {
@@ -204,13 +214,7 @@ public class ErrorHandler {
     try {
       Constructor<T> constructor = clazz.getConstructor(parameterTypes);
       return constructor.newInstance(parameters);
-    } catch (NoSuchMethodException e) {
-      // Do nothing - fall through.
-    } catch (InvocationTargetException e) {
-      // Do nothing - fall through.
-    } catch (InstantiationException e) {
-      // Do nothing - fall through.
-    } catch (IllegalAccessException e) {
+    } catch (ReflectiveOperationException e) {
       // Do nothing - fall through.
     } catch (OutOfMemoryError error) {
       // It can happen...

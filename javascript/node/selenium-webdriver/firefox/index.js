@@ -306,30 +306,6 @@ function findGeckoDriver() {
 
 
 /**
- * @param {(string|!Binary)} binary .
- * @return {!remote.DriverService} .
- */
-function createGeckoDriverService(binary) {
-  let exe = typeof binary === 'string' ?
-    Promise.resolve(binary) : binary.locate();
-
-  let geckoDriver = findGeckoDriver();
-  let port =  portprober.findFreePort();
-  let marionettePort = portprober.findFreePort();
-  return new remote.DriverService(geckoDriver, {
-    loopback: true,
-    port: port,
-    args: Promise.all([exe, port, marionettePort]).then(args => {
-      return ['-b', args[0],
-              '--port', args[1],
-              '--marionette-port', args[2]];
-    })
-    // ,stdio: 'inherit'
-  });
-}
-
-
-/**
  * @param {(Profile|string)} profile The profile to prepare.
  * @param {number} port The port the FirefoxDriver should listen on.
  * @return {!Promise<string>} a promise for the path to the profile directory.
@@ -661,7 +637,7 @@ class Driver extends webdriver.WebDriver {
   /**
    * Get the context that is currently in effect.
    *
-   * @return {!promise.Promise<Context>} Current context.
+   * @return {!promise.Thenable<Context>} Current context.
    */
   getContext() {
     return this.schedule(
@@ -681,7 +657,7 @@ class Driver extends webdriver.WebDriver {
    *
    * Use your powers wisely.
    *
-   * @param {!promise.Promise<void>} ctx The context to switch to.
+   * @param {!promise.Thenable<void>} ctx The context to switch to.
    */
   setContext(ctx) {
     return this.schedule(

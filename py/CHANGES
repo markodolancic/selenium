@@ -1,3 +1,19 @@
+Selenium 3.0.1
+* Fix regressions with python 3
+* Add support for Safari Technology Preview
+
+Selenium 3.0.0
+* new FirefoxDriver ctor precedence logic and moz:firefoxOptions support (#2882)
+* Add W3C Set Window Position and W3C Get Window Position
+* enable log path setting from firefox webdriver (#2700)
+* Correct encoding of getAttribute.js and only load it once. Fixes #2785
+* Encode the isDisplayed atom and only load it once
+
+Selenium 3.0.0.b3
+* Use atoms for get_attribute and is_displayed when communicating with
+  a w3c compliant remote end.
+* Make it possible to specialise web element
+
 Selenium 3.0.0.b2
 * Updated Marionette port argument to match other drivers.
 

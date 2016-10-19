@@ -104,14 +104,14 @@ public class BaseRemoteProxy implements RemoteProxy {
     this.request = request;
     this.registry = registry;
     this.config = new GridNodeConfiguration();
-    this.config.merge(request.getConfiguration());
-    // the registry is the 'hub' configuration, which takes precedence.
-    // merging last overrides any other values.
+    // the registry is the 'hub' configuration, which is used as a seed.
     this.config.merge(registry.getConfiguration());
+    // the proxy values must override any that the hub specify where an overlap occurs.
+    // merging last causes the values to be overridden.
+    this.config.merge(request.getConfiguration());
+    // host and port are merge() protected values -- overrule this behavior
     this.config.host = request.getConfiguration().host;
     this.config.port = request.getConfiguration().port;
-    // custom configurations from the remote need to 'override' the hub
-    this.config.custom.putAll(request.getConfiguration().custom);
 
     String url = config.getRemoteHost();
     String id = config.id;
@@ -138,7 +138,7 @@ public class BaseRemoteProxy implements RemoteProxy {
       this.id = remoteHost.toExternalForm();
     }
 
-    List<DesiredCapabilities> capabilities = request.getCapabilities();
+    List<DesiredCapabilities> capabilities = request.getConfiguration().capabilities;
 
     List<TestSlot> slots = new ArrayList<>();
     for (DesiredCapabilities capability : capabilities) {
@@ -391,7 +391,7 @@ public class BaseRemoteProxy implements RemoteProxy {
   public static <T extends RemoteProxy> T getNewInstance(
       RegistrationRequest request, Registry registry) {
     try {
-      String proxyClass = request.getRemoteProxyClass();
+      String proxyClass = request.getConfiguration().proxy;
       if (proxyClass == null) {
         log.fine("No proxy class. Using default");
         proxyClass = BaseRemoteProxy.class.getCanonicalName();

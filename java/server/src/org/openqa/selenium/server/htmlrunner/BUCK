@@ -1,5 +1,5 @@
 java_binary(
-  name = 'main',
+  name = 'selenium-runner',
   main_class = 'org.openqa.selenium.server.htmlrunner.HTMLLauncher',
   deps = [
     ':htmlrunner',
@@ -21,6 +21,7 @@ java_library(
     '//java/client/src/org/openqa/selenium/remote:remote',
     '//java/client/src/org/openqa/selenium/safari:safari',
     '//third_party/java/guava:guava',
+    '//third_party/java/beust:jcommander',
     '//third_party/java/jetty:jetty',
   ],
   visibility = [

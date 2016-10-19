@@ -25,17 +25,14 @@ import org.openqa.grid.internal.RemoteProxy;
 import org.openqa.grid.internal.utils.HtmlRenderer;
 import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
 import org.openqa.grid.web.servlet.RegistryBasedServlet;
+import org.openqa.selenium.internal.BuildInfo;
 import org.openqa.selenium.remote.DesiredCapabilities;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
-import java.util.jar.Manifest;
 import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
@@ -48,13 +45,15 @@ public class ConsoleServlet extends RegistryBasedServlet {
   private static final Logger log = Logger.getLogger(ConsoleServlet.class.getName());
   private static String coreVersion;
 
+  public static final String CONSOLE_PATH_PARAMETER = "webdriver.server.consoleservlet.path";
+
   public ConsoleServlet() {
     this(null);
   }
 
   public ConsoleServlet(Registry registry) {
     super(registry);
-    getVersion();
+    coreVersion = new BuildInfo().getReleaseLabel();
   }
 
   @Override
@@ -92,7 +91,7 @@ public class ConsoleServlet extends RegistryBasedServlet {
     builder.append("<html>");
     builder.append("<head>");
     builder
-        .append("<script src='//ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js'></script>");
+        .append("<script src='/grid/resources/org/openqa/grid/images/jquery-1.6.1.min.js'></script>");
 
     builder.append("<script src='/grid/resources/org/openqa/grid/images/console-beta.js'></script>");
 
@@ -244,26 +243,5 @@ public class ConsoleServlet extends RegistryBasedServlet {
 
   private String prettyHtmlPrint(GridHubConfiguration config) {
     return config.toString("<abbr title='%1$s'>%1$s : </abbr>%2$s</br>");
-  }
-
-  private void getVersion() {
-    InputStream stream = null;
-    try {
-      String classPath = this.getClass().getResource(this.getClass().getSimpleName() + ".class").toString();
-      String manifest = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
-      stream = new URL(manifest).openStream();
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-    if (stream == null) {
-      log.severe("Couldn't determine version number");
-      return;
-    }
-    try {
-      Manifest manifest = new Manifest(stream);
-      coreVersion = manifest.getEntries().get("Build-Info").getValue("Selenium-Version");
-    } catch (IOException e) {
-      log.severe("Cannot load version from VERSION.txt" + e.getMessage());
-    }
   }
 }

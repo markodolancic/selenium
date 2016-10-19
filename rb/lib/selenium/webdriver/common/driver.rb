@@ -44,7 +44,7 @@ module Selenium
           listener = opts.delete(:listener)
 
           bridge = case browser
-                   when :firefox, :ff, :marionette
+                   when :firefox, :ff
                      if Remote::W3CCapabilities.w3c?(opts)
                        Firefox::W3CBridge.new(opts)
                      else
@@ -65,11 +65,7 @@ module Selenium
                    when :phantomjs
                      PhantomJS::Bridge.new(opts)
                    when :safari
-                     if Safari::LegacyBridge.legacy?
-                       Safari::LegacyBridge.new(opts)
-                     else
-                       Safari::AppleBridge.new(opts)
-                     end
+                     Safari::Bridge.new(opts)
                    else
                      raise ArgumentError, "unknown driver: #{browser.inspect}"
                    end
