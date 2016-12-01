@@ -1,5 +1,6 @@
 require 'rake'
 require 'rake-tasks/browsers.rb'
+require 'rake-tasks/buck.rb'
 require 'rake-tasks/crazy_fun/mappings/common'
 
 class PythonMappings
@@ -7,8 +8,6 @@ class PythonMappings
     fun.add_mapping("py_test", Python::CheckPreconditions.new)
     fun.add_mapping("py_test", Python::AddDependencies.new)
     fun.add_mapping("py_test", Python::RunTests.new)
-
-    fun.add_mapping("py_env", Python::VirtualEnv.new)
 
     fun.add_mapping("py_docs", Python::GenerateDocs.new)
 
@@ -81,49 +80,10 @@ module Python
     end
   end
 
-  class VirtualEnv
+  class GenerateDocs < Tasks
     def handle(fun, dir, args)
       task Tasks.new.task_name(dir, args[:name]) do
-        dest = Platform.path_for(args[:dest])
-        pip_pkg = "pip install #{args[:packages].join(' ')}"
-        virtualenv = ["virtualenv", "--no-site-packages", " #{dest}"]
-        virtualenv += ["-p", ENV['pyversion']] if ENV['pyversion']
-        sh virtualenv.join(' '), :verbose => true do |ok, res|
-          unless ok
-            puts ""
-            puts "PYTHON DEPENDENCY ERROR: Virtualenv not found."
-            puts "Please run '[sudo] pip install virtualenv'"
-            puts ""
-          end
-        end
-
-        slash = Platform.dir_separator
-        python_dir = dest + slash + (windows? ? "Scripts" : "bin")
-        pip_install = python_dir + slash + pip_pkg
-        sh pip_install, :verbose => true
-
-        sh "#{python_dir}#{slash}python setup.py install", :verbose => true
-      end
-    end
-  end
-
-  class GenerateDocs < Tasks
-
-    def python_path
-      #This path should be passed through the py_env dep, rather than hard-coded
-      windows? ? "build\\python\\Scripts\\" : "build/python/bin/"
-    end
-
-    def handle(fun, dir, args)
-      task Tasks.new.task_name(dir, args[:name]) => args[:deps] do
-
-        source_folder = Platform.path_for args[:source_folder]
-        target_folder = Platform.path_for args[:target_folder]
-
-        sphinx_build = "#{python_path}sphinx-build"
-        sphinx_build =  sphinx_build + ".exe" if windows?
-
-        sh "#{sphinx_build} -b html -d build/doctrees #{source_folder} #{target_folder}", :verbose => true
+        sh "tox -e docs", :verbose => true
       end
     end
   end

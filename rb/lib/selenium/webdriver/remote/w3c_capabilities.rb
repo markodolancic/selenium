@@ -76,8 +76,8 @@ module Selenium
           end
 
           def firefox(opts = {})
-            opts[:browser_version] = opts.delete :version
-            opts[:platform_name] = opts.delete :platform
+            opts[:browser_version] = opts.delete(:version) if opts.key?(:version)
+            opts[:platform_name] = opts.delete(:platform) if opts.key?(:platform)
 
             new({browser_name: 'firefox'}.merge(opts))
           end
@@ -85,7 +85,8 @@ module Selenium
           alias_method :ff, :firefox
 
           def w3c?(opts = {})
-            !opts[:desired_capabilities].is_a?(Capabilities)
+            opts[:marionette] != false &&
+                (!opts[:desired_capabilities] || opts[:desired_capabilities][:marionette] != false)
           end
 
           #

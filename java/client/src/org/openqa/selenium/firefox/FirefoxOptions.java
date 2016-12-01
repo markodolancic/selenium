@@ -28,6 +28,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.remote.DesiredCapabilities;
 
 import java.io.File;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 
 
 /**
@@ -64,6 +66,64 @@ public class FirefoxOptions {
   private Map<String, Boolean> booleanPrefs = new HashMap<>();
   private Map<String, Integer> intPrefs = new HashMap<>();
   private Map<String, String> stringPrefs = new HashMap<>();
+  private Level logLevel = null;
+
+  /** INTERNAL ONLY: DO NOT USE */
+  static FirefoxOptions fromJsonMap(Map<String, Object> map) throws IOException {
+    FirefoxOptions options = new FirefoxOptions();
+
+    if (map.containsKey("binary")) {
+      options.setBinary(getOption(map, "binary", String.class));
+    }
+
+    if (map.containsKey("args")) {
+      @SuppressWarnings("unchecked")  // #YOLO
+      List<String> list = (List) getOption(map, "args", List.class);
+      options.addArguments(list);
+    }
+
+    if (map.containsKey("profile")) {
+      Object value = map.get("profile");
+      if (value instanceof String) {
+        options.setProfile(FirefoxProfile.fromJson((String) value));
+      } else if (value instanceof FirefoxProfile) {
+        options.setProfile((FirefoxProfile) value);
+      } else {
+        throw new WebDriverException(
+            "In FirefoxOptions, don't know how to convert profile: " + map);
+      }
+    }
+
+    if (map.containsKey("prefs")) {
+      @SuppressWarnings("unchecked")  // #YOLO
+      Map<String, Object> prefs = (Map) getOption(map, "prefs", Map.class);
+      prefs.entrySet().forEach(entry -> {
+        Object value = entry.getValue();
+        if (value instanceof Boolean) {
+          options.addPreference(entry.getKey(), (Boolean) value);
+        } else if (value instanceof Integer) {
+          options.addPreference(entry.getKey(), (Integer) value);
+        } else if (value instanceof String) {
+          options.addPreference(entry.getKey(), (String) value);
+        } else {
+          throw new WebDriverException(
+              "Invalid Firefox preference value: " + entry.getKey() + "=" + value);
+        }
+      });
+    }
+
+    return options;
+  }
+
+  private static <T> T getOption(Map<String, Object> map, String key, Class<T> type) {
+    Object value = map.get(key);
+    if (type.isInstance(value)) {
+      return type.cast(value);
+    }
+    throw new WebDriverException(
+        String.format(
+            "In FirefoxOptions, expected key '%s' to be a %s: %s", key, type.getSimpleName(), map));
+  }
 
   public FirefoxOptions setBinary(Path path) {
     return setBinary(checkNotNull(path).toString());
@@ -112,6 +172,11 @@ public class FirefoxOptions {
 
   public FirefoxOptions addPreference(String key, String value) {
     stringPrefs.put(checkNotNull(key), checkNotNull(value));
+    return this;
+  }
+
+  public FirefoxOptions setLogLevel(Level logLevel) {
+    this.logLevel = logLevel;
     return this;
   }
 
@@ -184,6 +249,12 @@ public class FirefoxOptions {
       options.add("prefs", allPrefs);
     }
 
+    if (logLevel != null) {
+      JsonObject level = new JsonObject();
+      level.add("level", new JsonPrimitive(logLevelToGeckoLevel()));
+      options.add("log", level);
+    }
+
     JsonArray arguments = new JsonArray();
     for (String arg : args) {
       arguments.add(new JsonPrimitive(arg));
@@ -191,6 +262,35 @@ public class FirefoxOptions {
     options.add("args", arguments);
 
     return options;
+  }
+
+  private String logLevelToGeckoLevel() {
+    // levels defined by GeckoDriver
+    // https://github.com/mozilla/geckodriver#log-object
+    if (logLevel.intValue() < Level.FINE.intValue()) {
+      return "trace";
+    }
+    if (logLevel == Level.FINE) {
+      return "debug";
+    }
+    if (logLevel == Level.CONFIG) {
+      return "config";
+    }
+    if (logLevel == Level.INFO) {
+      return "info";
+    }
+    if (logLevel == Level.WARNING) {
+      return "warn";
+    }
+    if (logLevel == Level.SEVERE) {
+      return "error";
+    }
+    if (logLevel == Level.OFF) {
+      return "fatal";
+    }
+
+    // something else?  ¯\_(ツ)_/¯
+    return "debug";
   }
 
 }

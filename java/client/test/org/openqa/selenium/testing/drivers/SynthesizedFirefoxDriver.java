@@ -89,31 +89,12 @@ public class SynthesizedFirefoxDriver extends FirefoxDriver {
 
   private static FirefoxProfile createTemporaryProfile() {
     if (!isInDevMode()) {
-      FirefoxProfile profile = new CustomProfile();
-
-      if (Boolean.getBoolean("webdriver.debug")) {
-        try {
-          Firebug.addTo(profile);
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      }
-
-      profile.setEnableNativeEvents(Boolean.getBoolean("selenium.browser.native_events"));
-
-      return profile;
+      return new CustomProfile();
     }
 
     try {
       FirefoxProfile profile = new CustomProfile();
-      if (Boolean.getBoolean("webdriver.debug")) {
-
-        Firebug.addTo(profile);
-      }
-
-      profile.setEnableNativeEvents(Boolean.getBoolean("selenium.browser.native_events"));
       profile.setPreference("webdriver.log.file", "/dev/stdout");
-
       return copyExtensionTo(profile);
     } catch (IOException e) {
       e.printStackTrace();

@@ -71,7 +71,7 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
       }
 
       CoreStepFactory factory = ((locator, value) -> (selenium, state) ->
-        invokeMethod(method, selenium, locator, value, (result -> NextStepDecorator.IDENTITY)));
+        invokeMethod(method, selenium, state.expand(locator), state.expand(value), (result -> NextStepDecorator.IDENTITY)));
 
       factories.put(method.getName(), factory);
 
@@ -175,7 +175,7 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
             state.expand(loc),
             state.expand(val),
             (toStore) -> {
-              state.store(state.expand(loc), toStore);
+              state.store(state.expand(val), toStore);
               return NextStepDecorator.IDENTITY;
             }));
 
@@ -193,7 +193,7 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
                     if (Boolean.class.isAssignableFrom(result.getClass())) {
                       return (Boolean) result;
                     }
-                    return true;
+                    return result.equals(state.expand(val));
                   } catch (IllegalAccessException e) {
                     // It's going to be interesting to see this be thrown
                     throw new RuntimeException(e);
@@ -222,7 +222,7 @@ class ReflectivelyDiscoveredSteps implements Supplier<ImmutableMap<String, CoreS
                     if (Boolean.class.isAssignableFrom(result.getClass())) {
                       return !(Boolean) result;
                     }
-                    return false;
+                    return !result.equals(state.expand(val));
                   } catch (IllegalAccessException e) {
                     // It's going to be interesting to see this be thrown
                     throw new RuntimeException(e);

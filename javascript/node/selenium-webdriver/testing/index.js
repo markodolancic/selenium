@@ -28,6 +28,16 @@
  * - it.skip
  * - xit
  *
+ * Each of the wrapped functions support generator functions. If the generator
+ * {@linkplain ../lib/promise.consume yields a promise}, the test will wait
+ * for that promise to resolve before invoking the next iteration of the
+ * generator:
+ *
+ *     test.it('generators', function*() {
+ *       let x = yield Promise.resolve(1);
+ *       assert.equal(x, 1);
+ *     });
+ *
  * The provided wrappers leverage the {@link webdriver.promise.ControlFlow}
  * to simplify writing asynchronous tests:
  *
@@ -68,8 +78,20 @@
 
 'use strict';
 
-var promise = require('..').promise;
-var flow = promise.controlFlow();
+const promise = require('..').promise;
+const flow = (function() {
+  const initial = process.env['SELENIUM_PROMISE_MANAGER'];
+  try {
+    process.env['SELENIUM_PROMISE_MANAGER'] = '1';
+    return promise.controlFlow();
+  } finally {
+    if (initial === undefined) {
+      delete process.env['SELENIUM_PROMISE_MANAGER'];
+    } else {
+      process.env['SELENIUM_PROMISE_MANAGER'] = initial;
+    }
+  }
+})();
 
 
 /**
@@ -121,13 +143,38 @@ function wrapArgument(value) {
  * Should preserve the semantics of Mocha's Runnable.prototype.run (See
  * https://github.com/mochajs/mocha/blob/master/lib/runnable.js#L192)
  *
- * @param {Function} fn
- * @return {Function}
+ * @param {!Function} fn
+ * @return {!Function}
  */
 function makeAsyncTestFn(fn) {
-  var async = fn.length > 0; // if test function expects a callback, its "async"
+  const isAsync = fn.length > 0;
+  const isGenerator = promise.isGenerator(fn);
+  if (isAsync && isGenerator) {
+    throw TypeError(
+        'generator-based tests must not take a callback; for async testing,'
+            + ' return a promise (or yield on a promise)');
+  }
 
   var ret = /** @type {function(this: mocha.Context)}*/ (function(done) {
+    const runTest = (resolve, reject) => {
+      try {
+        if (isAsync) {
+          fn.call(this, err => err ? reject(err) : resolve());
+        } else if (isGenerator) {
+          resolve(promise.consume(fn, this));
+        } else {
+          resolve(fn.call(this));
+        }
+      } catch (ex) {
+        reject(ex);
+      }
+    };
+
+    if (!promise.USE_PROMISE_MANAGER) {
+      new Promise(runTest).then(seal(done), done);
+      return;
+    }
+
     var runnable = this.runnable();
     var mochaCallback = runnable.callback;
     runnable.callback = function() {
@@ -135,25 +182,9 @@ function makeAsyncTestFn(fn) {
       return mochaCallback.apply(this, arguments);
     };
 
-    var testFn = fn.bind(this);
     flow.execute(function controlFlowExecute() {
       return new promise.Promise(function(fulfill, reject) {
-        if (async) {
-          // If testFn is async (it expects a done callback), resolve the promise of this
-          // test whenever that callback says to.  Any promises returned from testFn are
-          // ignored.
-          testFn(function testFnDoneCallback(err) {
-            if (err) {
-              reject(err);
-            } else {
-              fulfill();
-            }
-          });
-        } else {
-          // Without a callback, testFn can return a promise, or it will
-          // be assumed to have completed synchronously
-          fulfill(testFn());
-        }
+        return runTest(fulfill, reject);
       }, flow);
     }, runnable.fullTitle()).then(seal(done), done);
   });

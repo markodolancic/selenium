@@ -20,23 +20,22 @@ import pytest
 from selenium.common.exceptions import TimeoutException
 
 
-class TestPageLoadTimeout(object):
-
-    def testShouldTimeoutOnPageLoadTakingTooLong(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs driver does not implement page load timeouts")
-        if driver.capabilities['browserName'] == 'firefox' and driver.w3c:
-            pytest.xfail("Marionette issue: https://bugzilla.mozilla.org/show_bug.cgi?id=1309231")
-        driver.set_page_load_timeout(0.01)
-        with pytest.raises(TimeoutException):
-            pages.load("simpleTest.html")
-
-    def testClickShouldTimeout(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs driver does not implement page load timeouts")
-        if driver.capabilities['browserName'] == 'firefox' and driver.w3c:
-            pytest.xfail("Marionette issue: https://bugzilla.mozilla.org/show_bug.cgi?id=1309231")
+@pytest.mark.xfail_marionette(
+    reason='https://bugzilla.mozilla.org/show_bug.cgi?id=1309231')
+@pytest.mark.xfail_phantomjs(
+    reason='PhantomJS does not implement page load timeouts')
+def testShouldTimeoutOnPageLoadTakingTooLong(driver, pages):
+    driver.set_page_load_timeout(0.01)
+    with pytest.raises(TimeoutException):
         pages.load("simpleTest.html")
-        driver.set_page_load_timeout(0.01)
-        with pytest.raises(TimeoutException):
-            driver.find_element_by_id("multilinelink").click()
+
+
+@pytest.mark.xfail_marionette(
+    reason='https://bugzilla.mozilla.org/show_bug.cgi?id=1309231')
+@pytest.mark.xfail_phantomjs(
+    reason='PhantomJS does not implement page load timeouts')
+def testClickShouldTimeout(driver, pages):
+    pages.load("simpleTest.html")
+    driver.set_page_load_timeout(0.01)
+    with pytest.raises(TimeoutException):
+        driver.find_element_by_id("multilinelink").click()

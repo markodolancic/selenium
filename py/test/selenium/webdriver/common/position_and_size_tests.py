@@ -20,107 +20,89 @@ import pytest
 from selenium.webdriver.common.by import By
 
 
-class TestPositionAndSize(object):
+def testShouldBeAbleToDetermineTheLocationOfAnElement(driver, pages):
+    pages.load("xhtmlTest.html")
+    location = driver.find_element(By.ID, "username").location_once_scrolled_into_view
+    assert location["x"] > 0
+    assert location["y"] > 0
 
-    def testShouldBeAbleToDetermineTheLocationOfAnElement(self, driver, pages):
-        pages.load("xhtmlTest.html")
 
-        location = self._get_location_in_viewport(driver, By.ID, "username")
+@pytest.mark.parametrize('page', (
+    'coordinates_tests/simple_page.html',
+    'coordinates_tests/page_with_empty_element.html',
+    'coordinates_tests/page_with_transparent_element.html',
+    'coordinates_tests/page_with_hidden_element.html'),
+    ids=('basic', 'empty', 'transparent', 'hidden'))
+def testShouldGetCoordinatesOfAnElement(page, driver, pages):
+    pages.load(page)
+    element = driver.find_element(By.ID, "box")
+    _check_location(element.location_once_scrolled_into_view, x=10, y=10)
+    _check_location(element.location, x=10, y=10)
 
-        assert location["x"] > 0
-        assert location["y"] > 0
 
-    def testShouldGetCoordinatesOfAnElement(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/simple_page.html")
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 10, "y": 10}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
+def testShouldGetCoordinatesOfAnInvisibleElement(driver, pages):
+    pages.load("coordinates_tests/page_with_invisible_element.html")
+    element = driver.find_element(By.ID, "box")
+    _check_location(element.location_once_scrolled_into_view, x=0, y=0)
+    _check_location(element.location, x=0, y=0)
 
-    def testShouldGetCoordinatesOfAnEmptyElement(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/page_with_empty_element.html")
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 10, "y": 10}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
 
-    def testShouldGetCoordinatesOfATransparentElement(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/page_with_transparent_element.html")
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 10, "y": 10}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
+def testShouldScrollPageAndGetCoordinatesOfAnElementThatIsOutOfViewPort(driver, pages):
+    pages.load("coordinates_tests/page_with_element_out_of_view.html")
+    element = driver.find_element(By.ID, "box")
+    windowHeight = driver.get_window_size()["height"]
+    _check_location(element.location_once_scrolled_into_view, x=10)
+    assert 0 <= element.location_once_scrolled_into_view["y"] <= (windowHeight - 100)
+    _check_location(element.location, x=10, y=5010)
 
-    def testShouldGetCoordinatesOfAHiddenElement(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/page_with_hidden_element.html")
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 10, "y": 10}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
 
-    def testShouldGetCoordinatesOfAnInvisibleElement(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/page_with_invisible_element.html")
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 0, "y": 0}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 0, "y": 0}
+@pytest.mark.xfail_marionette
+@pytest.mark.xfail_phantomjs
+def testShouldGetCoordinatesOfAnElementInAFrame(driver, pages):
+    pages.load("coordinates_tests/element_in_frame.html")
+    driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
+    element = driver.find_element(By.ID, "box")
+    _check_location(element.location_once_scrolled_into_view, x=25, y=25)
+    _check_location(element.location, x=10, y=10)
 
-    def testShouldScrollPageAndGetCoordinatesOfAnElementThatIsOutOfViewPort(self, driver, pages):
-        pages.load("coordinates_tests/page_with_element_out_of_view.html")
-        windowHeight = driver.get_window_size()["height"]
-        location = self._get_location_in_viewport(driver, By.ID, "box")
-        assert location["x"] == 10
-        assert location["y"] >= 0
-        assert location["y"] <= windowHeight - 100
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 5010}
 
-    def testShouldGetCoordinatesOfAnElementInAFrame(self, driver, pages):
-        pages.load("coordinates_tests/element_in_frame.html")
-        driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
-        box = driver.find_element(By.ID, "box")
-        assert box.location == {"x": 10, "y": 10}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
+@pytest.mark.xfail_marionette
+@pytest.mark.xfail_phantomjs
+def testShouldGetCoordinatesOfAnElementInANestedFrame(driver, pages):
+    pages.load("coordinates_tests/element_in_nested_frame.html")
+    driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
+    driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
+    element = driver.find_element(By.ID, "box")
+    _check_location(element.location_once_scrolled_into_view, x=40, y=40)
+    _check_location(element.location, x=10, y=10)
 
-    @pytest.mark.ignore_marionette
-    def testShouldGetCoordinatesInViewPortOfAnElementInAFrame(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/element_in_frame.html")
-        driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 25, "y": 25}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
 
-    @pytest.mark.ignore_marionette
-    def testShouldGetCoordinatesInViewPortOfAnElementInANestedFrame(self, driver, pages):
-        if driver.capabilities['browserName'] == 'phantomjs':
-            pytest.xfail("phantomjs calculates coordinates differently")
-        pages.load("coordinates_tests/element_in_nested_frame.html")
-        driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
-        driver.switch_to_frame(driver.find_element(By.NAME, "ifr"))
-        assert self._get_location_in_viewport(driver, By.ID, "box") == {"x": 40, "y": 40}
-        assert self._get_location_on_page(driver, By.ID, "box") == {"x": 10, "y": 10}
+def testShouldGetCoordinatesOfAnElementWithFixedPosition(driver, pages):
+    pages.load("coordinates_tests/page_with_fixed_element.html")
+    element = driver.find_element(By.ID, "fixed")
+    _check_location(element.location_once_scrolled_into_view, y=0)
+    _check_location(element.location, y=0)
 
-    def testShouldGetCoordinatesOfAnElementWithFixedPosition(self, driver, pages):
-        pages.load("coordinates_tests/page_with_fixed_element.html")
-        assert self._get_location_in_viewport(driver, By.ID, "fixed")["y"] == 0
-        assert self._get_location_on_page(driver, By.ID, "fixed")["y"] == 0
+    driver.find_element(By.ID, "bottom").click()
+    _check_location(element.location_once_scrolled_into_view, y=0)
+    assert element.location["y"] > 0
 
-        driver.find_element(By.ID, "bottom").click()
-        assert self._get_location_in_viewport(driver, By.ID, "fixed")["y"] == 0
-        assert self._get_location_on_page(driver, By.ID, "fixed")["y"] > 0
 
-    def testShouldCorrectlyIdentifyThatAnElementHasWidthAndHeight(self, driver, pages):
-        pages.load("xhtmlTest.html")
+def testShouldCorrectlyIdentifyThatAnElementHasWidthAndHeight(driver, pages):
+    pages.load("xhtmlTest.html")
+    shrinko = driver.find_element(By.ID, "linkId")
+    size = shrinko.size
+    assert size["width"] > 0
+    assert size["height"] > 0
 
-        shrinko = driver.find_element(By.ID, "linkId")
-        size = shrinko.size
-        assert size["width"] > 0
-        assert size["height"] > 0
 
-    def _get_location_in_viewport(self, driver, by, locator):
-        element = driver.find_element(by, locator)
-        return element.location_once_scrolled_into_view
-
-    def _get_location_on_page(self, driver, by, locator):
-        element = driver.find_element(by, locator)
-        return element.location
+def _check_location(location, **kwargs):
+    try:
+        # python 2.x
+        expected = kwargs.viewitems()
+        actual = location.viewitems()
+    except AttributeError:
+        # python 3.x
+        expected = kwargs.items()
+        actual = location.items()
+    assert expected <= actual

@@ -9,17 +9,17 @@ Python language bindings for Selenium WebDriver.
 
 The `selenium` package is used to automate web browser interaction from Python.
 
-+-----------+-------------------------------------------------------------------------------------+
-| **Home**: | http://www.seleniumhq.org                                                           |
-+-----------+-------------------------------------------------------------------------------------+
-| **Docs**: | `selenium package API <http://seleniumhq.github.io/selenium/docs/api/py/api.html>`_ |
-+-----------+-------------------------------------------------------------------------------------+
-| **Dev**:  | https://github.com/SeleniumHQ/Selenium                                              |
-+-----------+-------------------------------------------------------------------------------------+
-| **PyPI**: | https://pypi.python.org/pypi/selenium                                               |
-+-----------+-------------------------------------------------------------------------------------+
-| **IRC**:  | **#selenium** channel on freenode                                                   |
-+-----------+-------------------------------------------------------------------------------------+
++-----------+--------------------------------------------------------------------------------------+
+| **Home**: | http://www.seleniumhq.org                                                            |
++-----------+--------------------------------------------------------------------------------------+
+| **Docs**: | `selenium package API <https://seleniumhq.github.io/selenium/docs/api/py/api.html>`_ |
++-----------+--------------------------------------------------------------------------------------+
+| **Dev**:  | https://github.com/SeleniumHQ/Selenium                                               |
++-----------+--------------------------------------------------------------------------------------+
+| **PyPI**: | https://pypi.python.org/pypi/selenium                                                |
++-----------+--------------------------------------------------------------------------------------+
+| **IRC**:  | **#selenium** channel on freenode                                                    |
++-----------+--------------------------------------------------------------------------------------+
 
 Several browsers/drivers are supported (Firefox, Chrome, Internet Explorer, PhantomJS), as well as the Remote protocol.
 
@@ -32,11 +32,11 @@ Supported Python Versions
 Installing
 ==========
 
-If you have `pip <http://www.pip-installer.org>`_ on your system, you can simply install or upgrade the Python bindings::
+If you have `pip <https://pip.pypa.io/>`_ on your system, you can simply install or upgrade the Python bindings::
 
     pip install -U selenium
 
-Alternately, you can download the source distribution from `PyPI <http://pypi.python.org/pypi/selenium>`_ (e.g. selenium-3.0.1.tar.gz), unarchive it, and run::
+Alternately, you can download the source distribution from `PyPI <http://pypi.python.org/pypi/selenium>`_ (e.g. selenium-3.0.2.tar.gz), unarchive it, and run::
 
     python setup.py install
 

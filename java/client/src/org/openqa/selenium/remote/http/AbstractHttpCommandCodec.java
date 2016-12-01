@@ -26,8 +26,6 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static org.openqa.selenium.remote.DriverCommand.ADD_COOKIE;
 import static org.openqa.selenium.remote.DriverCommand.CLEAR_ELEMENT;
-import static org.openqa.selenium.remote.DriverCommand.CLEAR_LOCAL_STORAGE;
-import static org.openqa.selenium.remote.DriverCommand.CLEAR_SESSION_STORAGE;
 import static org.openqa.selenium.remote.DriverCommand.CLICK;
 import static org.openqa.selenium.remote.DriverCommand.CLICK_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.CLOSE;
@@ -58,18 +56,12 @@ import static org.openqa.selenium.remote.DriverCommand.GET_ELEMENT_SIZE;
 import static org.openqa.selenium.remote.DriverCommand.GET_ELEMENT_TAG_NAME;
 import static org.openqa.selenium.remote.DriverCommand.GET_ELEMENT_TEXT;
 import static org.openqa.selenium.remote.DriverCommand.GET_ELEMENT_VALUE_OF_CSS_PROPERTY;
-import static org.openqa.selenium.remote.DriverCommand.GET_LOCAL_STORAGE_ITEM;
-import static org.openqa.selenium.remote.DriverCommand.GET_LOCAL_STORAGE_KEYS;
-import static org.openqa.selenium.remote.DriverCommand.GET_LOCAL_STORAGE_SIZE;
 import static org.openqa.selenium.remote.DriverCommand.GET_LOCATION;
 import static org.openqa.selenium.remote.DriverCommand.GET_LOG;
 import static org.openqa.selenium.remote.DriverCommand.GET_NETWORK_CONNECTION;
 import static org.openqa.selenium.remote.DriverCommand.GET_SCREEN_ORIENTATION;
 import static org.openqa.selenium.remote.DriverCommand.GET_SCREEN_ROTATION;
 import static org.openqa.selenium.remote.DriverCommand.GET_SESSION_LOGS;
-import static org.openqa.selenium.remote.DriverCommand.GET_SESSION_STORAGE_ITEM;
-import static org.openqa.selenium.remote.DriverCommand.GET_SESSION_STORAGE_KEYS;
-import static org.openqa.selenium.remote.DriverCommand.GET_SESSION_STORAGE_SIZE;
 import static org.openqa.selenium.remote.DriverCommand.GET_TITLE;
 import static org.openqa.selenium.remote.DriverCommand.GO_BACK;
 import static org.openqa.selenium.remote.DriverCommand.GO_FORWARD;
@@ -88,20 +80,16 @@ import static org.openqa.selenium.remote.DriverCommand.MOVE_TO;
 import static org.openqa.selenium.remote.DriverCommand.NEW_SESSION;
 import static org.openqa.selenium.remote.DriverCommand.QUIT;
 import static org.openqa.selenium.remote.DriverCommand.REFRESH;
-import static org.openqa.selenium.remote.DriverCommand.REMOVE_LOCAL_STORAGE_ITEM;
-import static org.openqa.selenium.remote.DriverCommand.REMOVE_SESSION_STORAGE_ITEM;
 import static org.openqa.selenium.remote.DriverCommand.SCREENSHOT;
 import static org.openqa.selenium.remote.DriverCommand.SEND_KEYS_TO_ACTIVE_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.SEND_KEYS_TO_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.SET_ALERT_CREDENTIALS;
 import static org.openqa.selenium.remote.DriverCommand.SET_BROWSER_ONLINE;
-import static org.openqa.selenium.remote.DriverCommand.SET_LOCAL_STORAGE_ITEM;
 import static org.openqa.selenium.remote.DriverCommand.SET_LOCATION;
 import static org.openqa.selenium.remote.DriverCommand.SET_NETWORK_CONNECTION;
 import static org.openqa.selenium.remote.DriverCommand.SET_SCREEN_ORIENTATION;
 import static org.openqa.selenium.remote.DriverCommand.SET_SCREEN_ROTATION;
 import static org.openqa.selenium.remote.DriverCommand.SET_SCRIPT_TIMEOUT;
-import static org.openqa.selenium.remote.DriverCommand.SET_SESSION_STORAGE_ITEM;
 import static org.openqa.selenium.remote.DriverCommand.SET_TIMEOUT;
 import static org.openqa.selenium.remote.DriverCommand.STATUS;
 import static org.openqa.selenium.remote.DriverCommand.SWITCH_TO_CONTEXT;
@@ -121,9 +109,7 @@ import static org.openqa.selenium.remote.DriverCommand.UPLOAD_FILE;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.HashBiMap;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
@@ -135,6 +121,7 @@ import org.openqa.selenium.remote.CommandCodec;
 import org.openqa.selenium.remote.JsonToBeanConverter;
 import org.openqa.selenium.remote.SessionId;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,7 +135,7 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
   private static final Splitter PATH_SPLITTER = Splitter.on('/').omitEmptyStrings();
   private static final String SESSION_ID_PARAM = "sessionId";
 
-  private final BiMap<String, CommandSpec> nameToSpec = HashBiMap.create();
+  private final ConcurrentHashMap<String, CommandSpec> nameToSpec = new ConcurrentHashMap();
   private final Map<String, String> aliases = new HashMap<>();
   private final BeanToJsonConverter beanToJsonConverter = new BeanToJsonConverter();
   private final JsonToBeanConverter jsonToBeanConverter = new JsonToBeanConverter();
@@ -222,21 +209,6 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
     defineCommand(GET_LOCATION, get("/session/:sessionId/location"));
     defineCommand(SET_LOCATION, post("/session/:sessionId/location"));
 
-    defineCommand(CLEAR_LOCAL_STORAGE, delete("/session/:sessionId/local_storage"));
-    defineCommand(GET_LOCAL_STORAGE_KEYS, get("/session/:sessionId/local_storage"));
-    defineCommand(SET_LOCAL_STORAGE_ITEM, post("/session/:sessionId/local_storage"));
-    defineCommand(REMOVE_LOCAL_STORAGE_ITEM, delete("/session/:sessionId/local_storage/key/:key"));
-    defineCommand(GET_LOCAL_STORAGE_ITEM, get("/session/:sessionId/local_storage/key/:key"));
-    defineCommand(GET_LOCAL_STORAGE_SIZE, get("/session/:sessionId/local_storage/size"));
-
-    defineCommand(CLEAR_SESSION_STORAGE, delete("/session/:sessionId/session_storage"));
-    defineCommand(GET_SESSION_STORAGE_KEYS, get("/session/:sessionId/session_storage"));
-    defineCommand(SET_SESSION_STORAGE_ITEM, post("/session/:sessionId/session_storage"));
-    defineCommand(
-        REMOVE_SESSION_STORAGE_ITEM, delete("/session/:sessionId/session_storage/key/:key"));
-    defineCommand(GET_SESSION_STORAGE_ITEM, get("/session/:sessionId/session_storage/key/:key"));
-    defineCommand(GET_SESSION_STORAGE_SIZE, get("/session/:sessionId/session_storage/size"));
-
     defineCommand(GET_SCREEN_ORIENTATION, get("/session/:sessionId/orientation"));
     defineCommand(SET_SCREEN_ORIENTATION, post("/session/:sessionId/orientation"));
     defineCommand(GET_SCREEN_ROTATION, get("/session/:sessionId/rotation"));
@@ -308,18 +280,20 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
     final String path = Strings.isNullOrEmpty(encodedCommand.getUri())
                         ? "/" : encodedCommand.getUri();
     final ImmutableList<String> parts = ImmutableList.copyOf(PATH_SPLITTER.split(path));
-    List<CommandSpec> matchingSpecs = FluentIterable.from(nameToSpec.inverse().keySet())
-        .filter(spec -> {
-          return spec.isFor(encodedCommand.getMethod(), parts);
-        })
-        .toSortedList((a, b) -> a.pathSegments.size() - b.pathSegments.size());
-
-    if (matchingSpecs.isEmpty()) {
+    int minPathLength = Integer.MAX_VALUE;
+    CommandSpec spec = null;
+    String name = null;
+    for (Map.Entry<String, CommandSpec> nameValue : nameToSpec.entrySet()) {
+      if ((nameValue.getValue().pathSegments.size() < minPathLength)
+          && nameValue.getValue().isFor(encodedCommand.getMethod(), parts)) {
+        name = nameValue.getKey();
+        spec = nameValue.getValue();
+      }
+    }
+    if (name == null) {
       throw new UnsupportedCommandException(
           encodedCommand.getMethod() + " " + encodedCommand.getUri());
     }
-    CommandSpec spec = matchingSpecs.get(0);
-
     Map<String, Object> parameters = Maps.newHashMap();
     spec.parsePathParameters(parts, parameters);
 
@@ -330,7 +304,6 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
       parameters.putAll(tmp);
     }
 
-    String name = nameToSpec.inverse().get(spec);
     SessionId sessionId = null;
     if (parameters.containsKey(SESSION_ID_PARAM)) {
       String id = (String) parameters.remove(SESSION_ID_PARAM);

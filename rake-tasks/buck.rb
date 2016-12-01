@@ -1,5 +1,4 @@
 require 'childprocess'
-require 'java'
 require 'rake-tasks/checks'
 
 module Buck
@@ -19,8 +18,9 @@ module Buck
 
       if cached_hash == out_hash
         # Make sure we're running a pristine buck instance
-        sh "python \"#{out}\" kill"
-        return ["python", out]
+        cmd = (windows?) ? ["python", out] : [out]
+        sh cmd.join(" ") + " kill", :verbose => true
+        return cmd
       end
 
       url = "https://github.com/SeleniumHQ/buck/releases/download/buck-release-#{version}/buck.pex"
@@ -38,8 +38,9 @@ module Buck
 
       ant.get('src' => url, 'dest' => out, 'verbose' => true)
       File.chmod(0755, out)
-      sh "python \"#{out}\" kill"
-      ["python", out]
+      cmd = (windows?) ? ["python", out] : [out]
+      sh cmd.join(" ") + " kill", :verbose => true
+      cmd
     )
   end
 
@@ -84,7 +85,8 @@ module Buck
         proc.wait
 
         if proc.exit_code != 0
-          raise "Buck build failed"
+          raise "Buck build failed with exit code: #{proc.exit_code}
+stdout: #{proc.io.stdout.output}"
         end
 
         block.call(proc.io.stdout.output) if block
@@ -186,6 +188,7 @@ rule /\/\/.*:zip/ => [ proc {|task_name| task_name[0..-5]} ] do |task|
 
       output.lines do |line|
         line.chomp!
+        line = line.gsub(/\\/, "/")
 
         if line =~ /gen\/third_party\/.*\.jar/
           third_party.push(line)
