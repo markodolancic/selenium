@@ -42,8 +42,10 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.HasInputDevices;
+import org.openqa.selenium.interactions.Interactive;
 import org.openqa.selenium.interactions.Keyboard;
 import org.openqa.selenium.interactions.Mouse;
+import org.openqa.selenium.interactions.Sequence;
 import org.openqa.selenium.internal.FindsByClassName;
 import org.openqa.selenium.internal.FindsByCssSelector;
 import org.openqa.selenium.internal.FindsById;
@@ -63,6 +65,7 @@ import org.openqa.selenium.security.Credentials;
 import org.openqa.selenium.security.UserAndPassword;
 
 import java.net.URL;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -75,9 +78,9 @@ import java.util.logging.Logger;
 
 @Augmentable
 public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
-    FindsById, FindsByClassName, FindsByLinkText, FindsByName,
-    FindsByCssSelector, FindsByTagName, FindsByXPath,
-    HasInputDevices, HasCapabilities, TakesScreenshot {
+      FindsById, FindsByClassName, FindsByLinkText, FindsByName,
+      FindsByCssSelector, FindsByTagName, FindsByXPath,
+      HasInputDevices, HasCapabilities, Interactive, TakesScreenshot {
 
   // TODO(dawagner): This static logger should be unified with the per-instance localLogs
   private static final Logger logger = Logger.getLogger(RemoteWebDriver.class.getName());
@@ -405,14 +408,6 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
     return allElements;
   }
 
-  static String cssEscape(String using) {
-    using = using.replaceAll("(['\"\\\\#.:;,!?+<>=~*^$|%&@`{}\\-\\/\\[\\]\\(\\)])", "\\\\$1");
-    if (using.length() > 0 && Character.isDigit(using.charAt(0))) {
-      using = "\\" + Integer.toString(30 + Integer.parseInt(using.substring(0,1))) + " " + using.substring(1);
-    }
-    return using;
-  }
-
   public WebElement findElementById(String using) {
     return findElement("id", using);
   }
@@ -655,11 +650,21 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
   }
 
   protected Response execute(String command) {
-    return execute(command, ImmutableMap.<String, Object>of());
+    return execute(command, ImmutableMap.of());
   }
 
   protected ExecuteMethod getExecuteMethod() {
     return executeMethod;
+  }
+
+  @Override
+  public void perform(Collection<Sequence> actions) {
+    execute(DriverCommand.ACTIONS, ImmutableMap.of("actions", actions));
+  }
+
+  @Override
+  public void resetInputState() {
+    execute(DriverCommand.CLEAR_ACTIONS_STATE);
   }
 
   public Keyboard getKeyboard() {
@@ -820,22 +825,19 @@ public class RemoteWebDriver implements WebDriver, JavascriptExecutor,
 
       public Timeouts implicitlyWait(long time, TimeUnit unit) {
         execute(DriverCommand.SET_TIMEOUT, ImmutableMap.of(
-            "type", "implicit",
-            "ms", TimeUnit.MILLISECONDS.convert(time, unit)));
+            "implicit", TimeUnit.MILLISECONDS.convert(time, unit)));
         return this;
       }
 
       public Timeouts setScriptTimeout(long time, TimeUnit unit) {
         execute(DriverCommand.SET_TIMEOUT, ImmutableMap.of(
-            "type", "script",
-            "ms", TimeUnit.MILLISECONDS.convert(time, unit)));
+            "script", TimeUnit.MILLISECONDS.convert(time, unit)));
         return this;
       }
 
       public Timeouts pageLoadTimeout(long time, TimeUnit unit) {
         execute(DriverCommand.SET_TIMEOUT, ImmutableMap.of(
-            "type", "page load",
-            "ms", TimeUnit.MILLISECONDS.convert(time, unit)));
+            "page load", TimeUnit.MILLISECONDS.convert(time, unit)));
         return this;
       }
     } // timeouts class.

@@ -26,18 +26,25 @@ module Selenium
 
       class Bridge < Remote::W3CBridge
         def initialize(opts = {})
-          port = opts.delete(:port) || Service::DEFAULT_PORT
-          service_args = opts.delete(:service_args) || {}
+          opts[:desired_capabilities] ||= Remote::W3CCapabilities.edge
 
           unless opts.key?(:url)
-            driver_path = opts.delete(:driver_path) || Edge.driver_path(false)
-            @service = Service.new(driver_path, port, *extract_service_args(service_args))
+            driver_path = opts.delete(:driver_path) || Edge.driver_path
+            port = opts.delete(:port) || Service::DEFAULT_PORT
+
+            opts[:driver_opts] ||= {}
+            if opts.key? :service_args
+              WebDriver.logger.warn <<-DEPRECATE.gsub(/\n +| {2,}/, ' ').freeze
+            [DEPRECATION] `:service_args` is deprecated. Pass switches using `driver_opts`
+              DEPRECATE
+              opts[:driver_opts][:args] = opts.delete(:service_args)
+            end
+
+            @service = Service.new(driver_path, port, opts.delete(:driver_opts))
             @service.host = 'localhost' if @service.host == '127.0.0.1'
             @service.start
             opts[:url] = @service.uri
           end
-
-          opts[:desired_capabilities] ||= Remote::W3CCapabilities.edge
 
           super(opts)
         end
@@ -47,10 +54,7 @@ module Selenium
         end
 
         def driver_extensions
-          [
-            DriverExtensions::TakesScreenshot,
-            DriverExtensions::HasInputDevices
-          ]
+          [DriverExtensions::TakesScreenshot]
         end
 
         def commands(command)
@@ -75,52 +79,6 @@ module Selenium
           super
         ensure
           @service.stop if @service
-        end
-
-        def execute_script(script, *args)
-          result = execute :execute_script, {}, {script: script, args: args}
-          unwrap_script_result result
-        end
-
-        def execute_async_script(script, *args)
-          result = execute :execute_async_script, {}, {script: script, args: args}
-          unwrap_script_result result
-        end
-
-        def submit_element(element)
-          execute :submit_element, id: element['ELEMENT']
-        end
-
-        def double_click
-          execute :double_click
-        end
-
-        def click
-          execute :click, {}, {button: 0}
-        end
-
-        def context_click
-          execute :click, {}, {button: 2}
-        end
-
-        def mouse_down
-          execute :mouse_down
-        end
-
-        def mouse_up
-          execute :mouse_up
-        end
-
-        def mouse_move_to(element, x = nil, y = nil)
-          element_id = element['ELEMENT'] if element
-          params = {element: element_id}
-
-          if x && y
-            params[:xoffset] = x
-            params[:yoffset] = y
-          end
-
-          execute :mouse_move_to, {}, params
         end
 
         def send_keys_to_active_element(key)
@@ -158,14 +116,48 @@ module Selenium
           execute :maximize_window, window_handle: handle
         end
 
-        private
+        def create_session(desired_capabilities)
+          resp = raw_execute :new_session, {}, {desiredCapabilities: desired_capabilities}
+          @session_id = resp['sessionId']
+          return Remote::W3CCapabilities.json_create resp['value'] if @session_id
 
-        def extract_service_args(args = {})
-          service_args = []
-          service_args << "–host=#{args[:host]}" if args.key? :host
-          service_args << "–package=#{args[:package]}" if args.key? :package
-          service_args << "-verbose" if args[:verbose] == true
-          service_args
+          raise Error::WebDriverError, 'no sessionId in returned payload'
+        end
+
+        #
+        # executes a command on the remote server.
+        #
+        #
+        # Returns the 'value' of the returned payload
+        #
+
+        def execute(*args)
+          result = raw_execute(*args)
+          result.payload.key?('value') ? result['value'] : result
+        end
+
+        #
+        # executes a command on the remote server.
+        #
+        # @return [WebDriver::Remote::Response]
+        #
+
+        def raw_execute(command, opts = {}, command_hash = nil)
+          verb, path = commands(command) || raise(ArgumentError, "unknown command: #{command.inspect}")
+          path = path.dup
+
+          path[':session_id'] = @session_id if path.include?(':session_id')
+
+          begin
+            opts.each do |key, value|
+              path[key.inspect] = escaper.escape(value.to_s)
+            end
+          rescue IndexError
+            raise ArgumentError, "#{opts.inspect} invalid for #{command.inspect}"
+          end
+
+          WebDriver.logger.info("-> #{verb.to_s.upcase} #{path}")
+          http.call verb, path, command_hash
         end
       end # Bridge
     end # Edge

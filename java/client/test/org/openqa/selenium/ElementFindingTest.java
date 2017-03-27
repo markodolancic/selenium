@@ -17,29 +17,30 @@
 
 package org.openqa.selenium;
 
-import org.junit.Test;
-import org.openqa.selenium.testing.Ignore;
-import org.openqa.selenium.testing.JUnit4TestBase;
-import org.openqa.selenium.testing.JavascriptEnabled;
-import org.openqa.selenium.testing.NeedsFreshDriver;
-import org.openqa.selenium.testing.SwitchToTopAfterTest;
-import org.openqa.selenium.testing.TestUtilities;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 import static org.openqa.selenium.testing.Driver.CHROME;
+import static org.openqa.selenium.testing.Driver.HTMLUNIT;
 import static org.openqa.selenium.testing.Driver.IE;
 import static org.openqa.selenium.testing.Driver.MARIONETTE;
 import static org.openqa.selenium.testing.Driver.REMOTE;
 import static org.openqa.selenium.testing.Driver.SAFARI;
 import static org.openqa.selenium.testing.TestUtilities.isOldIe;
 
-import static org.hamcrest.Matchers.is;
+import org.junit.Test;
+import org.openqa.selenium.testing.Ignore;
+import org.openqa.selenium.testing.JUnit4TestBase;
+import org.openqa.selenium.testing.JavascriptEnabled;
+import org.openqa.selenium.testing.NeedsFreshDriver;
+import org.openqa.selenium.testing.NotYetImplemented;
+import org.openqa.selenium.testing.SwitchToTopAfterTest;
+import org.openqa.selenium.testing.TestUtilities;
 
 import java.util.List;
 
@@ -61,6 +62,18 @@ public class ElementFindingTest extends JUnit4TestBase {
     assertThat(element.getAttribute("id"), is("2"));
   }
 
+  @Ignore(
+      value = {CHROME, IE},
+      reason = "Need to recompile drivers with atoms from 6c55320d3f0eb23de56270a55c74602fc8d63c8a")
+  @Test
+  public void testShouldBeAbleToFindASingleElementByIdWithNonAlphanumericCharacters() {
+    driver.get(pages.nestedPage);
+    WebElement element = driver.findElement(By.id("white space"));
+    assertThat(element.getText(), is("space"));
+    WebElement element2 = driver.findElement(By.id("css#.chars"));
+    assertThat(element2.getText(), is("css escapes"));
+  }
+
   @Test
   public void testShouldBeAbleToFindMultipleElementsById() {
     driver.get(pages.nestedPage);
@@ -73,6 +86,18 @@ public class ElementFindingTest extends JUnit4TestBase {
     driver.get(pages.nestedPage);
     List<WebElement> elements = driver.findElements(By.id("2"));
     assertThat(elements.size(), is(8));
+  }
+
+  @Ignore(
+      value = {CHROME, IE},
+      reason = "Need to recompile drivers with atoms from 6c55320d3f0eb23de56270a55c74602fc8d63c8a")
+  @Test
+  public void testShouldBeAbleToFindMultipleElementsByIdWithNonAlphanumericCharacters() {
+    driver.get(pages.nestedPage);
+    List<WebElement> elements = driver.findElements(By.id("white space"));
+    assertThat(elements.size(), is(2));
+    List<WebElement> elements2 = driver.findElements(By.id("css#.chars"));
+    assertThat(elements2.size(), is(2));
   }
 
   // By.id negative
@@ -218,7 +243,6 @@ public class ElementFindingTest extends JUnit4TestBase {
     driver.findElement(By.tagName(""));
   }
 
-  @Ignore(CHROME)
   @Test(expected = NoSuchElementException.class)
   public void testFindingMultipleElementsByEmptyTagNameShouldThrow() {
     driver.get(pages.formPage);
@@ -298,42 +322,38 @@ public class ElementFindingTest extends JUnit4TestBase {
     driver.findElement(By.className("nameB"));
   }
 
-  @Ignore(value = {CHROME}, reason = "throws WebDriverException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingASingleElementByEmptyClassNameShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElement(By.className(""));
   }
 
-  @Ignore(value = {CHROME}, reason = "Chrome: throws WebDriverException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingMultipleElementsByEmptyClassNameShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElements(By.className(""));
   }
 
-  @Ignore(value = {CHROME}, reason = "throws WebDriverException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingASingleElementByCompoundClassNameShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElement(By.className("a b"));
   }
 
-  @Ignore(value = {CHROME, MARIONETTE}, reason = "Chrome: throws WebDriverException")
+  @Ignore(value = {MARIONETTE})
   @Test(expected = NoSuchElementException.class)
   public void testFindingMultipleElementsByCompoundClassNameShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElements(By.className("a b"));
   }
 
-  @Ignore(value = {CHROME}, reason = "Chrome: throws InvalidElementStateException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingASingleElementByInvalidClassNameShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElement(By.className("!@#$%^&*"));
   }
 
-  @Ignore(value = {CHROME, MARIONETTE}, reason = "Chrome: throws InvalidElementStateException")
+  @Ignore(value = {MARIONETTE})
   @Test(expected = NoSuchElementException.class)
   public void testFindingMultipleElementsByInvalidClassNameShouldThrow() {
     driver.get(pages.xhtmlTestPage);
@@ -405,6 +425,7 @@ public class ElementFindingTest extends JUnit4TestBase {
   }
 
   @Ignore({IE, SAFARI, CHROME})
+  @NotYetImplemented(value = HTMLUNIT, reason = "This used to work in HtmlUnit 2.23")
   @Test
   public void testShouldBeAbleToFindElementByXPathInXmlDocument() {
     driver.get(pages.simpleXmlDocument);
@@ -551,32 +572,24 @@ public class ElementFindingTest extends JUnit4TestBase {
     assertThat(elements.size(), is(0));
   }
 
-  @Ignore(value = {CHROME},
-          reason = "Chrome: throws WebDriverException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingASingleElementByEmptyCssSelectorShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElement(By.cssSelector(""));
   }
 
-  @Ignore(value = {CHROME},
-          reason = "Chrome: throws WebDriverException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingMultipleElementsByEmptyCssSelectorShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElements(By.cssSelector(""));
   }
 
-  @Ignore(value = {CHROME},
-          reason = "Chrome: throws InvalidElementStateException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingASingleElementByInvalidCssSelectorShouldThrow() {
     driver.get(pages.xhtmlTestPage);
     driver.findElement(By.cssSelector("//a/b/c[@id='1']"));
   }
 
-  @Ignore(value = {CHROME},
-          reason = "Chrome: throws InvalidElementStateException")
   @Test(expected = NoSuchElementException.class)
   public void testFindingMultipleElementsByInvalidCssSelectorShouldThrow() {
     assumeFalse("Ignoring test for lack of error in CSS in IE6", TestUtilities.isIe6(driver));

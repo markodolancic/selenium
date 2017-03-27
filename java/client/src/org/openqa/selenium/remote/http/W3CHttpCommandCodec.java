@@ -18,6 +18,8 @@
 package org.openqa.selenium.remote.http;
 
 import static org.openqa.selenium.remote.DriverCommand.ACCEPT_ALERT;
+import static org.openqa.selenium.remote.DriverCommand.ACTIONS;
+import static org.openqa.selenium.remote.DriverCommand.CLEAR_ACTIONS_STATE;
 import static org.openqa.selenium.remote.DriverCommand.CLEAR_LOCAL_STORAGE;
 import static org.openqa.selenium.remote.DriverCommand.CLEAR_SESSION_STORAGE;
 import static org.openqa.selenium.remote.DriverCommand.DISMISS_ALERT;
@@ -65,7 +67,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 import org.openqa.selenium.WebDriverException;
@@ -124,6 +125,9 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
     defineCommand(SET_ALERT_VALUE, post("/session/:sessionId/alert/text"));
 
     defineCommand(GET_ACTIVE_ELEMENT, get("/session/:sessionId/element/active"));
+
+    defineCommand(ACTIONS, post("/session/:sessionId/actions"));
+    defineCommand(CLEAR_ACTIONS_STATE, delete("/session/:sessionId/actions"));
   }
 
   @Override
@@ -237,20 +241,27 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
       case SEND_KEYS_TO_ACTIVE_ELEMENT:
       case SEND_KEYS_TO_ELEMENT:
         return ImmutableMap.<String, Object>builder()
-          .putAll(
-            parameters.entrySet().stream()
-              .filter(e -> !"value".equals(e.getKey()))
-              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-          .put(
-            "value",
-            stringToUtf8Array(
-              Stream.of((CharSequence[]) parameters.get("value"))
-                .flatMap(Stream::of)
-                .collect(Collectors.joining())))
+            .putAll(
+                parameters.entrySet().stream()
+                    .filter(e -> !"value".equals(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+            .put(
+                "text",
+                stringToUtf8Array(
+                    Stream.of((CharSequence[]) parameters.get("value"))
+                        .flatMap(Stream::of)
+                        .collect(Collectors.joining())))
+            .put(
+                "value",
+                stringToUtf8Array(
+                    Stream.of((CharSequence[]) parameters.get("value"))
+                        .flatMap(Stream::of)
+                        .collect(Collectors.joining())))
           .build();
 
       case SET_ALERT_VALUE:
         return ImmutableMap.<String, Object>builder()
+          .put("text", stringToUtf8Array((String) parameters.get("text")))
           .put("value", stringToUtf8Array((String) parameters.get("text")))
           .build();
 
@@ -338,7 +349,7 @@ public class W3CHttpCommandCodec extends AbstractHttpCommandCodec {
   }
 
   private String cssEscape(String using) {
-    using = using.replaceAll("(['\"\\\\#.:;,!?+<>=~*^$|%&@`{}\\-\\/\\[\\]\\(\\)])", "\\\\$1");
+    using = using.replaceAll("([\\s'\"\\\\#.:;,!?+<>=~*^$|%&@`{}\\-\\/\\[\\]\\(\\)])", "\\\\$1");
     if (using.length() > 0 && Character.isDigit(using.charAt(0))) {
       using = "\\" + Integer.toString(30 + Integer.parseInt(using.substring(0,1))) + " " + using.substring(1);
     }

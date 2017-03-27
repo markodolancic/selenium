@@ -59,7 +59,7 @@
  *     let options = new chrome.Options();
  *     // configure browser options ...
  *
- *     let driver = new chrome.Driver(options, service);
+ *     let driver = chrome.Driver.createSession(options, service);
  *
  * Users should only instantiate the {@link Driver} class directly when they
  * need a custom driver service configuration (as shown above). For normal
@@ -143,7 +143,9 @@ const CHROMEDRIVER_EXE =
  * @enum {string}
  */
 const Command = {
-  LAUNCH_APP: 'launchApp'
+  LAUNCH_APP: 'launchApp',
+  GET_NETWORK_CONDITIONS: 'getNetworkConditions',
+  SET_NETWORK_CONDITIONS: 'setNetworkConditions'
 };
 
 
@@ -169,6 +171,14 @@ function configureExecutor(executor) {
       Command.LAUNCH_APP,
       'POST',
       '/session/:sessionId/chromium/launch_app');
+  executor.defineCommand(
+      Command.GET_NETWORK_CONDITIONS,
+      'GET',
+      '/session/:sessionId/chromium/network_conditions');
+  executor.defineCommand(
+      Command.SET_NETWORK_CONDITIONS,
+      'POST',
+      '/session/:sessionId/chromium/network_conditions');
 }
 
 
@@ -595,7 +605,7 @@ class Options {
    *     let options = new chrome.Options().setMobileEmulation(
    *         {deviceName: 'Google Nexus 5'});
    *
-   *     let driver = new chrome.Driver(options);
+   *     let driver = chrome.Driver.createSession(options);
    *
    * __Example 2: Using Custom Screen Configuration__
    *
@@ -605,7 +615,7 @@ class Options {
    *         pixelRatio: 3.0
    *     });
    *
-   *     let driver = new chrome.Driver(options);
+   *     let driver = chrome.Driver.createSession(options);
    *
    *
    * [em]: https://sites.google.com/a/chromium.org/chromedriver/mobile-emulation
@@ -726,6 +736,43 @@ class Driver extends webdriver.WebDriver {
     return this.schedule(
         new command.Command(Command.LAUNCH_APP).setParameter('id', id),
         'Driver.launchApp()');
+  }
+  
+  /**
+   * Schedules a command to get Chrome network emulation settings.
+   * @return {!promise.Thenable<T>} A promise that will be resolved
+   *     when network emulation settings are retrievied.
+   */
+  getNetworkConditions() {
+    return this.schedule(
+        new command.Command(Command.GET_NETWORK_CONDITIONS),
+        'Driver.getNetworkConditions()');
+  }
+
+  /**
+   * Schedules a command to set Chrome network emulation settings.
+   * 
+   * __Sample Usage:__
+   * 
+   *  driver.setNetworkConditions({
+   *    offline: false,
+   *    latency: 5, // Additional latency (ms).
+   *    download_throughput: 500 * 1024, // Maximal aggregated download throughput.
+   *    upload_throughput: 500 * 1024 // Maximal aggregated upload throughput.
+   * });
+   * 
+   * @param {Object} spec Defines the network conditions to set
+   * @return {!promise.Thenable<void>} A promise that will be resolved
+   *     when network emulation settings are set.
+   */
+  setNetworkConditions(spec) {
+    if (!spec || typeof spec !== 'object') {
+      throw TypeError('setNetworkConditions called with non-network-conditions parameter');
+    }
+
+    return this.schedule(
+        new command.Command(Command.SET_NETWORK_CONDITIONS).setParameter('network_conditions', spec),
+        'Driver.setNetworkConditions(' + JSON.stringify(spec) + ')');
   }
 }
 

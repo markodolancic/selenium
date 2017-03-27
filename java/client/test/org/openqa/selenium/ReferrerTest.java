@@ -32,10 +32,13 @@ import static org.openqa.selenium.testing.InProject.locate;
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
 import com.google.common.net.HttpHeaders;
+
+import com.sun.corba.se.impl.orbutil.HexOutputStream;
 
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -58,6 +61,7 @@ import org.seleniumhq.jetty9.server.handler.AbstractHandler;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.file.Files;
@@ -454,15 +458,20 @@ public class ReferrerTest extends JUnit4TestBase {
    */
   private abstract static class ServerResource extends ExternalResource {
     protected final Server server;
+    private final int port;
+    private final HostAndPort hostAndPort;
 
     ServerResource() {
-      server = new Server();
+      this.server = new Server();
 
       ServerConnector http = new ServerConnector(server);
       int port = PortProber.findFreePort();
       http.setPort(port);
       http.setIdleTimeout(500000);
-      server.addConnector(http);
+
+      this.port = port;
+      this.server.addConnector(http);
+      this.hostAndPort = HostAndPort.fromParts("localhost", port);
     }
 
     void addHandler(Handler handler) {
@@ -470,7 +479,7 @@ public class ReferrerTest extends JUnit4TestBase {
     }
 
     HostAndPort getHostAndPort() {
-      return HostAndPort.fromParts(server.getURI().getHost(), server.getURI().getPort());
+      return Preconditions.checkNotNull(hostAndPort);
     }
 
     String getBaseUrl() {
