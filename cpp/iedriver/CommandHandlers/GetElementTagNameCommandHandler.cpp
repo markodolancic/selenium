@@ -34,18 +34,29 @@ void GetElementTagNameCommandHandler::ExecuteInternal(
     Response* response) {
   ParametersMap::const_iterator id_parameter_iterator = command_parameters.find("id");
   if (id_parameter_iterator == command_parameters.end()) {
-    response->SetErrorResponse(400, "Missing parameter in URL: id");
+    response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Missing parameter in URL: id");
     return;
   } else {
     std::string element_id = id_parameter_iterator->second.asString();
+
+    BrowserHandle browser_wrapper;
+    int status_code = executor.GetCurrentBrowser(&browser_wrapper);
+    if (status_code != WD_SUCCESS) {
+      response->SetErrorResponse(ERROR_NO_SUCH_WINDOW, "Unable to get browser");
+      return;
+    }
+
     ElementHandle element_wrapper;
-    int status_code = this->GetElement(executor, element_id, &element_wrapper);
+    status_code = this->GetElement(executor, element_id, &element_wrapper);
     if (status_code == WD_SUCCESS) {
       std::string return_value = element_wrapper->GetTagName();
       response->SetSuccessResponse(return_value);
       return;
+    } else if (status_code == ENOSUCHELEMENT) {
+      response->SetErrorResponse(ERROR_NO_SUCH_ELEMENT, "Invalid internal element ID requested: " + element_id);
+      return;
     } else {
-      response->SetErrorResponse(status_code, "Element is no longer valid");
+      response->SetErrorResponse(ERROR_STALE_ELEMENT_REFERENCE, "Element is no longer valid");
       return;
     }
   }

@@ -1,5 +1,3 @@
-# encoding: utf-8
-#
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -38,8 +36,9 @@ module Selenium
         port
       end
 
-      IGNORED_ERRORS = [Errno::EADDRNOTAVAIL]
+      IGNORED_ERRORS = [Errno::EADDRNOTAVAIL, Errno::EAFNOSUPPORT]
       IGNORED_ERRORS << Errno::EBADF if Platform.cygwin?
+      IGNORED_ERRORS << Errno::EACCES if Platform.windows?
       IGNORED_ERRORS.freeze
 
       def self.free?(port)

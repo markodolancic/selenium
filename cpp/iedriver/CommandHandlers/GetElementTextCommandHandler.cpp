@@ -36,7 +36,7 @@ void GetElementTextCommandHandler::ExecuteInternal(
     Response* response) {
   ParametersMap::const_iterator id_parameter_iterator = command_parameters.find("id");
   if (id_parameter_iterator == command_parameters.end()) {
-    response->SetErrorResponse(400, "Missing parameter in URL: id");
+    response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Missing parameter in URL: id");
     return;
   } else {
     std::string element_id = id_parameter_iterator->second.asString();
@@ -66,17 +66,29 @@ void GetElementTextCommandHandler::ExecuteInternal(
       status_code = script_wrapper.Execute();
 
       if (status_code == WD_SUCCESS) {
-        std::string text = "";
-        bool is_null = script_wrapper.ConvertResultToString(&text);
-        response->SetSuccessResponse(text);
+        Json::Value text_value;
+        IECommandExecutor& mutable_executor = const_cast<IECommandExecutor&>(executor);
+        int is_null = script_wrapper.ConvertResultToJsonValue(mutable_executor.element_manager(), &text_value);
+        if (!text_value.isString()) {
+          // This really should never happen, since we're executing an atom
+          // over which we have complete control. Nevertheless, check for
+          // the error here, just in case.
+          response->SetErrorResponse(ERROR_JAVASCRIPT_ERROR,
+                                     "Atom retrieving text was executed, but did not return a string");
+          return;
+        }
+        response->SetSuccessResponse(text_value.asString());
         return;
       } else {
         response->SetErrorResponse(status_code,
-                                    "Unable to get element text");
+                                   "Unable to get element text");
         return;
       }
+    } else if (status_code == ENOSUCHELEMENT) {
+      response->SetErrorResponse(ERROR_NO_SUCH_ELEMENT, "Invalid internal element ID requested: " + element_id);
+      return;
     } else {
-      response->SetErrorResponse(status_code, "Element is no longer valid");
+      response->SetErrorResponse(ERROR_STALE_ELEMENT_REFERENCE, "Element is no longer valid");
       return;
     }
   }

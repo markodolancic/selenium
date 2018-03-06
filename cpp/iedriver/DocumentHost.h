@@ -62,6 +62,10 @@ class DocumentHost {
 
   virtual bool IsValidWindow(void) = 0;
 
+  virtual bool IsFullScreen(void) = 0;
+  virtual bool SetFullScreen(bool is_full_screen) = 0;
+  void Restore(void);
+
   std::string GetCurrentUrl(void);
   std::string GetPageSource(void);
 
@@ -76,6 +80,12 @@ class DocumentHost {
 
   bool wait_required(void) const { return this->wait_required_; }
   void set_wait_required(const bool value) { this->wait_required_ = value; }
+
+  bool script_wait_required(void) const { return this->script_wait_required_; }
+  void set_script_wait_required(const bool value) { this->script_wait_required_ = value; }
+
+  HWND script_executor_handle(void) const { return this->script_executor_handle_; }
+  void set_script_executor_handle(HWND value) { this->script_executor_handle_ = value; }
 
   bool is_closing(void) const { return this->is_closing_; }
 
@@ -106,8 +116,10 @@ class DocumentHost {
   CComPtr<IHTMLWindow2> focused_frame_window_;
   HWND window_handle_;
   HWND executor_handle_;
+  HWND script_executor_handle_;
   std::string browser_id_;
   bool wait_required_;
+  bool script_wait_required_;
   bool is_closing_;
 };
 

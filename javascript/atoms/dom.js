@@ -146,7 +146,7 @@ bot.dom.isFocusable = function(element) {
       bot.dom.isEditable(element);
 
   function tagNameMatches(tagName) {
-    return element.tagName.toUpperCase() == tagName;
+    return bot.dom.isElement(element, tagName);
   }
 };
 
@@ -187,8 +187,10 @@ bot.dom.DISABLED_ATTRIBUTE_SUPPORTED_ = [
  * @return {boolean} Whether the element is enabled.
  */
 bot.dom.isEnabled = function(el) {
-  var tagName = el.tagName.toUpperCase();
-  if (!goog.array.contains(bot.dom.DISABLED_ATTRIBUTE_SUPPORTED_, tagName)) {
+  var isSupported = goog.array.some(
+      bot.dom.DISABLED_ATTRIBUTE_SUPPORTED_,
+      function(tagName) { return bot.dom.isElement(el, tagName); });
+  if (!isSupported) {
     return true;
   }
 
@@ -200,8 +202,8 @@ bot.dom.isEnabled = function(el) {
   // we must test if it inherits its state from a parent.
   if (el.parentNode &&
       el.parentNode.nodeType == goog.dom.NodeType.ELEMENT &&
-      goog.dom.TagName.OPTGROUP == tagName ||
-      goog.dom.TagName.OPTION == tagName) {
+      bot.dom.isElement(el, goog.dom.TagName.OPTGROUP) ||
+      bot.dom.isElement(el, goog.dom.TagName.OPTION)) {
     return bot.dom.isEnabled(/**@type{!Element}*/ (el.parentNode));
   }
 
@@ -567,13 +569,13 @@ bot.dom.isShown = function(elem, opt_ignoreOpacity) {
           } else {
             parent = parent.host;
           }
-        } else if (parent.nodeType == goog.dom.NodeType.DOCUMENT ||
-            parent.nodeType == goog.dom.NodeType.DOCUMENT_FRAGMENT) {
+        } else if (parent && (parent.nodeType == goog.dom.NodeType.DOCUMENT ||
+            parent.nodeType == goog.dom.NodeType.DOCUMENT_FRAGMENT)) {
           parent = null;
         }
       } while (elem && elem.nodeType != goog.dom.NodeType.ELEMENT);
       return !parent || displayed(parent);
-    }
+    };
   } else {
     // Any element with a display style equal to 'none' or that has an ancestor
     // with display style equal to 'none' is not shown.
@@ -583,7 +585,7 @@ bot.dom.isShown = function(elem, opt_ignoreOpacity) {
       }
       var parent = bot.dom.getParentElement(e);
       return !parent || displayed(parent);
-    }
+    };
   }
   return bot.dom.isShown_(elem, !!opt_ignoreOpacity, displayed);
 };
@@ -1028,7 +1030,8 @@ bot.dom.appendVisibleTextLinesFromElementCommon_ = function(
         bot.dom.getEffectiveStyle(elem, 'cssFloat') ||
         bot.dom.getEffectiveStyle(elem, 'styleFloat');
     var runIntoThis = prevDisplay == 'run-in' && thisFloat == 'none';
-    if (isBlock && !runIntoThis && !goog.string.isEmpty(currLine())) {
+    if (isBlock && !runIntoThis &&
+        !goog.string.isEmptyOrWhitespace(currLine())) {
       lines.push('');
     }
 
@@ -1063,7 +1066,8 @@ bot.dom.appendVisibleTextLinesFromElementCommon_ = function(
 
     // Add a newline after block elems when there is text on the current line,
     // and the current element isn't marked as run-in.
-    if (isBlock && display != 'run-in' && !goog.string.isEmpty(line)) {
+    if (isBlock && display != 'run-in' &&
+        !goog.string.isEmptyOrWhitespace(line)) {
       lines.push('');
     }
   }

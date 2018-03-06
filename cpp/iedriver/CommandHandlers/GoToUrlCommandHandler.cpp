@@ -15,9 +15,11 @@
 // limitations under the License.
 
 #include "GoToUrlCommandHandler.h"
+#include <shlwapi.h>
 #include "errorcodes.h"
 #include "../Browser.h"
 #include "../IECommandExecutor.h"
+#include "../StringUtilities.h"
 
 namespace webdriver {
 
@@ -33,23 +35,53 @@ void GoToUrlCommandHandler::ExecuteInternal(
     Response* response) {
   ParametersMap::const_iterator url_parameter_iterator = command_parameters.find("url");
   if (url_parameter_iterator == command_parameters.end()) {
-    response->SetErrorResponse(400, "Missing parameter: url");
+    response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Missing parameter: url");
     return;
   } else {
     BrowserHandle browser_wrapper;
     int status_code = executor.GetCurrentBrowser(&browser_wrapper);
     if (status_code != WD_SUCCESS) {
-      response->SetErrorResponse(status_code, "Unable to get browser");
+      response->SetErrorResponse(ERROR_NO_SUCH_WINDOW, "Unable to get browser");
       return;
     }
 
-    // TODO: check result for error
+    // TODO: PathIsURL isn't quite the right thing. We need to
+    // find the correct API that will parse the URL to tell 
+    // us whether the URL is valid according to the URL spec.
     std::string url = url_parameter_iterator->second.asString();
+    std::wstring wide_url = StringUtilities::ToWString(url);
+    BOOL is_valid = ::PathIsURL(wide_url.c_str());
+    if (is_valid != TRUE) {
+      response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Specified URL (" + url + ") is not valid.");
+      return;
+    }
+
+    BOOL is_file_url = ::UrlIsFileUrl(wide_url.c_str());
+    if (is_file_url) {
+      DWORD path_length = MAX_PATH;
+      std::vector<wchar_t> buffer(path_length);
+      HRESULT hr = ::PathCreateFromUrl(wide_url.c_str(), &buffer[0], &path_length, 0);
+      if (FAILED(hr)) {
+        response->SetErrorResponse(ERROR_INVALID_ARGUMENT,
+                                   "Specified URL (" + url + ") is a file, " +
+                                   "but the path was not valid.");
+        return;
+      } else {
+        std::wstring file_path(&buffer[0]);
+        if (file_path.size() == 0) {
+          response->SetErrorResponse(ERROR_INVALID_ARGUMENT,
+                                     "Specified URL (" + url + ") is a file, " +
+                                     "but the path was not valid.");
+          return;
+        }
+      }
+    }
+
     status_code = browser_wrapper->NavigateToUrl(url);
     if (status_code != WD_SUCCESS) {
-      response->SetErrorResponse(status_code, "Failed to navigate to "
-                                                  + url
-                                                  + ". This usually means that a call to the COM method IWebBrowser2::Navigate2() failed.");
+      response->SetErrorResponse(ERROR_UNKNOWN_ERROR, "Failed to navigate to "
+          + url
+          + ". This usually means that a call to the COM method IWebBrowser2::Navigate2() failed.");
       return;
     }
     browser_wrapper->SetFocusedFrameByElement(NULL);

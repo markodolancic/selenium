@@ -1,4 +1,4 @@
-﻿// <copyright file="RemoteWebDriver.cs" company="WebDriver Committers">
+// <copyright file="RemoteWebDriver.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -68,7 +68,7 @@ namespace OpenQA.Selenium.Remote
         /// </summary>
         protected static readonly TimeSpan DefaultCommandTimeout = TimeSpan.FromSeconds(60);
 
-        private static readonly string DefaultRemoteServerUrl = "http://127.0.0.1:4444/wd/hub";
+        private const string DefaultRemoteServerUrl = "http://127.0.0.1:4444/wd/hub";
 
         private ICommandExecutor executor;
         private ICapabilities capabilities;
@@ -85,7 +85,7 @@ namespace OpenQA.Selenium.Remote
         /// </summary>
         /// <param name="options">An <see cref="DriverOptions"/> object containing the desired capabilities of the browser.</param>
         public RemoteWebDriver(DriverOptions options)
-            : this(options.ToCapabilities())
+            : this(ConvertOptionsToCapabilities(options))
         {
         }
 
@@ -104,7 +104,7 @@ namespace OpenQA.Selenium.Remote
         /// <param name="remoteAddress">URI containing the address of the WebDriver remote server (e.g. http://127.0.0.1:4444/wd/hub).</param>
         /// <param name="options">An <see cref="DriverOptions"/> object containing the desired capabilities of the browser.</param>
         public RemoteWebDriver(Uri remoteAddress, DriverOptions options)
-            : this(remoteAddress, options.ToCapabilities())
+            : this(remoteAddress, ConvertOptionsToCapabilities(options))
         {
         }
 
@@ -415,7 +415,7 @@ namespace OpenQA.Selenium.Remote
         /// <summary>
         /// Gets a value indicating whether this object is a valid action executor.
         /// </summary>
-        bool IActionExecutor.IsActionExecutor
+        public bool IsActionExecutor
         {
             get { return this.IsSpecificationCompliant; }
         }
@@ -940,8 +940,13 @@ namespace OpenQA.Selenium.Remote
         /// Performs the specified list of actions with this action executor.
         /// </summary>
         /// <param name="actionSequenceList">The list of action sequences to perform.</param>
-        void IActionExecutor.PerformActions(List<ActionSequence> actionSequenceList)
+        public void PerformActions(IList<ActionSequence> actionSequenceList)
         {
+            if (actionSequenceList == null)
+            {
+                throw new ArgumentNullException("actionSequenceList", "List of action sequences must not be null");
+            }
+
             if (this.IsSpecificationCompliant)
             {
                 List<object> objectList = new List<object>();
@@ -959,7 +964,7 @@ namespace OpenQA.Selenium.Remote
         /// <summary>
         /// Resets the input state of the action executor.
         /// </summary>
-        void IActionExecutor.ResetInputState()
+        public void ResetInputState()
         {
             if (this.IsSpecificationCompliant)
             {
@@ -1037,25 +1042,28 @@ namespace OpenQA.Selenium.Remote
         {
             List<IWebElement> toReturn = new List<IWebElement>();
             object[] elements = response.Value as object[];
-            foreach (object elementObject in elements)
+            if (elements != null)
             {
-                Dictionary<string, object> elementDictionary = elementObject as Dictionary<string, object>;
-                if (elementDictionary != null)
+                foreach (object elementObject in elements)
                 {
-                    // TODO: Remove this "if" logic once the spec is properly updated
-                    // and remote-end implementations comply.
-                    string id = string.Empty;
-                    if (elementDictionary.ContainsKey("element-6066-11e4-a52e-4f735466cecf"))
+                    Dictionary<string, object> elementDictionary = elementObject as Dictionary<string, object>;
+                    if (elementDictionary != null)
                     {
-                        id = (string)elementDictionary["element-6066-11e4-a52e-4f735466cecf"];
-                    }
-                    else if (elementDictionary.ContainsKey("ELEMENT"))
-                    {
-                        id = (string)elementDictionary["ELEMENT"];
-                    }
+                        // TODO: Remove this "if" logic once the spec is properly updated
+                        // and remote-end implementations comply.
+                        string id = string.Empty;
+                        if (elementDictionary.ContainsKey("element-6066-11e4-a52e-4f735466cecf"))
+                        {
+                            id = (string)elementDictionary["element-6066-11e4-a52e-4f735466cecf"];
+                        }
+                        else if (elementDictionary.ContainsKey("ELEMENT"))
+                        {
+                            id = (string)elementDictionary["ELEMENT"];
+                        }
 
-                    RemoteWebElement element = this.CreateElement(id);
-                    toReturn.Add(element);
+                        RemoteWebElement element = this.CreateElement(id);
+                        toReturn.Add(element);
+                    }
                 }
             }
 
@@ -1094,30 +1102,21 @@ namespace OpenQA.Selenium.Remote
         /// <param name="desiredCapabilities">Capabilities of the browser</param>
         protected void StartSession(ICapabilities desiredCapabilities)
         {
-            DesiredCapabilities capabilitiesObject = desiredCapabilities as DesiredCapabilities;
             Dictionary<string, object> parameters = new Dictionary<string, object>();
-            parameters.Add("desiredCapabilities", capabilitiesObject.CapabilitiesDictionary);
+            parameters.Add("desiredCapabilities", this.GetLegacyCapabilitiesDictionary(desiredCapabilities));
 
-            // Must remove "platform" and "version" capabilities, which are not
-            // supported by W3C compliant remote ends. Note that this block is
-            // temporary and will change soon.
-            Dictionary<string, object> firstMatchCapabilities = capabilitiesObject.CapabilitiesDictionary;
-            if (firstMatchCapabilities.ContainsKey(CapabilityType.Version))
+            ISpecificationCompliant specCompliantCapabilities = desiredCapabilities as ISpecificationCompliant;
+            if (specCompliantCapabilities != null && specCompliantCapabilities.IsSpecificationCompliant)
             {
-                firstMatchCapabilities.Remove(CapabilityType.Version);
+                Dictionary<string, object> firstMatchCapabilities = this.GetCapabilitiesDictionary(desiredCapabilities);
+
+                List<object> firstMatchCapabilitiesList = new List<object>();
+                firstMatchCapabilitiesList.Add(firstMatchCapabilities);
+
+                Dictionary<string, object> specCompliantCapabilitiesDictionary = new Dictionary<string, object>();
+                specCompliantCapabilitiesDictionary["firstMatch"] = firstMatchCapabilitiesList;
+                parameters.Add("capabilities", specCompliantCapabilitiesDictionary);
             }
-
-            if (firstMatchCapabilities.ContainsKey(CapabilityType.Platform))
-            {
-                firstMatchCapabilities.Remove(CapabilityType.Platform);
-            }
-
-            List<object> firstMatchCapabilitiesList = new List<object>();
-            firstMatchCapabilitiesList.Add(firstMatchCapabilities);
-
-            Dictionary<string, object> specCompliantCapabilities = new Dictionary<string, object>();
-            specCompliantCapabilities["firstMatch"] = firstMatchCapabilitiesList;
-            parameters.Add("capabilities", specCompliantCapabilities);
 
             Response response = this.Execute(DriverCommand.NewSession, parameters);
 
@@ -1125,6 +1124,47 @@ namespace OpenQA.Selenium.Remote
             DesiredCapabilities returnedCapabilities = new DesiredCapabilities(rawCapabilities);
             this.capabilities = returnedCapabilities;
             this.sessionId = new SessionId(response.SessionId);
+        }
+
+        /// <summary>
+        /// Gets the capabilities as a dictionary supporting legacy drivers.
+        /// </summary>
+        /// <param name="legacyCapabilities">The dictionary to return.</param>
+        /// <returns>A Dictionary consisting of the capabilities requested.</returns>
+        /// <remarks>This method is only transitional. Do not rely on it. It will be removed
+        /// once browser driver capability formats stabilize.</remarks>
+        protected virtual Dictionary<string, object> GetLegacyCapabilitiesDictionary(ICapabilities legacyCapabilities)
+        {
+            Dictionary<string, object> capabilitiesDictionary = new Dictionary<string, object>();
+            DesiredCapabilities capabilitiesObject = legacyCapabilities as DesiredCapabilities;
+            foreach (KeyValuePair<string, object> entry in capabilitiesObject.CapabilitiesDictionary)
+            {
+                capabilitiesDictionary.Add(entry.Key, entry.Value);
+            }
+
+            return capabilitiesDictionary;
+        }
+
+        /// <summary>
+        /// Gets the capabilities as a dictionary.
+        /// </summary>
+        /// <param name="capabilitiesToConvert">The dictionary to return.</param>
+        /// <returns>A Dictionary consisting of the capabilities requested.</returns>
+        /// <remarks>This method is only transitional. Do not rely on it. It will be removed
+        /// once browser driver capability formats stabilize.</remarks>
+        protected virtual Dictionary<string, object> GetCapabilitiesDictionary(ICapabilities capabilitiesToConvert)
+        {
+            Dictionary<string, object> capabilitiesDictionary = new Dictionary<string, object>();
+            DesiredCapabilities capabilitiesObject = capabilitiesToConvert as DesiredCapabilities;
+            foreach (KeyValuePair<string, object> entry in capabilitiesObject.CapabilitiesDictionary)
+            {
+                if (entry.Key != CapabilityType.Version && entry.Key != CapabilityType.Platform)
+                {
+                    capabilitiesDictionary.Add(entry.Key, entry.Value);
+                }
+            }
+
+            return capabilitiesDictionary;
         }
 
         /// <summary>
@@ -1340,6 +1380,9 @@ namespace OpenQA.Selenium.Remote
                         case WebDriverResult.ObsoleteElement:
                             throw new StaleElementReferenceException(errorMessage);
 
+                        case WebDriverResult.ElementNotInteractable:
+                            throw new ElementNotInteractableException(errorMessage);
+
                         case WebDriverResult.ElementNotDisplayed:
                             throw new ElementNotVisibleException(errorMessage);
 
@@ -1399,6 +1442,9 @@ namespace OpenQA.Selenium.Remote
                         case WebDriverResult.NoSuchDriver:
                             throw new WebDriverException(errorMessage);
 
+                        case WebDriverResult.InvalidArgument:
+                            throw new WebDriverException(errorMessage);
+
                         default:
                             throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, "{0} ({1})", errorMessage, errorResponse.Status));
                     }
@@ -1408,6 +1454,16 @@ namespace OpenQA.Selenium.Remote
                     throw new WebDriverException("Unexpected error. " + errorResponse.Value.ToString());
                 }
             }
+        }
+
+        private static ICapabilities ConvertOptionsToCapabilities(DriverOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException("options", "Driver options must not be null");
+            }
+
+            return options.ToCapabilities();
         }
 
         private object ParseJavaScriptReturnValue(object responseValue)

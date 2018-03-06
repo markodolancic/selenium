@@ -57,6 +57,7 @@ import org.openqa.selenium.UnsupportedCommandException;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.interactions.InvalidCoordinatesException;
 import org.openqa.selenium.interactions.MoveTargetOutOfBoundsException;
+import org.openqa.selenium.json.Json;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -214,7 +215,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testShouldBeAbleToRebuildASerializedException() throws Exception {
     RuntimeException serverError = new RuntimeException("foo bar baz!\nCommand duration or timeout: 123 milliseconds");
@@ -238,7 +239,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testShouldIncludeScreenshotIfProvided() throws Exception {
     RuntimeException serverError = new RuntimeException("foo bar baz!");
@@ -266,7 +267,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testShouldDefaultToWebDriverExceptionIfClassIsNotSpecified()
       throws Exception {
@@ -291,7 +292,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testShouldStillTryToBuildWebDriverExceptionIfClassIsNotProvidedAndStackTraceIsNotForJava() {
     Map<String, ?> data = ImmutableMap.of(
@@ -326,7 +327,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testToleratesNonNumericLineNumber() {
     Map<String, ?> data = ImmutableMap.of(
@@ -361,7 +362,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testToleratesNumericLineNumberAsString() {
     Map<String, ?> data = ImmutableMap.of(
@@ -396,7 +397,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testShouldIndicateWhenTheServerReturnedAnExceptionThatWasSuppressed()
       throws Exception {
@@ -415,7 +416,7 @@ public class ErrorHandlerTest {
     }
   }
 
-  @SuppressWarnings({"unchecked", "ThrowableInstanceNeverThrown"})
+  @SuppressWarnings("ThrowableInstanceNeverThrown")
   @Test
   public void testShouldStillIncludeScreenshotEvenIfServerSideExceptionsAreDisabled()
       throws Exception {
@@ -441,7 +442,7 @@ public class ErrorHandlerTest {
 
   @Test
   public void testStatusCodesRaisedBackToStatusMatches() {
-    Map<Integer, Class> exceptions = new HashMap<>();
+    Map<Integer, Class<?>> exceptions = new HashMap<>();
     exceptions.put(ErrorCodes.NO_SUCH_SESSION, NoSuchSessionException.class);
     exceptions.put(ErrorCodes.NO_SUCH_ELEMENT, NoSuchElementException.class);
     exceptions.put(ErrorCodes.NO_SUCH_FRAME, NoSuchFrameException.class);
@@ -470,7 +471,7 @@ public class ErrorHandlerTest {
     exceptions.put(ErrorCodes.INVALID_XPATH_SELECTOR_RETURN_TYPER, InvalidSelectorException.class);
 
     Set<String> collectedFailures = new HashSet<>();
-    for (Map.Entry<Integer, Class> exception : exceptions.entrySet()) {
+    for (Map.Entry<Integer, Class<?>> exception : exceptions.entrySet()) {
       try {
         handler.throwIfResponseFailed(createResponse(exception.getKey()), 123);
         fail("Should have thrown an Exception");
@@ -520,7 +521,7 @@ public class ErrorHandlerTest {
 
   @SuppressWarnings({"unchecked"})
   private static Map<String, Object> toMap(Object o) throws Exception {
-    String rawJson = new BeanToJsonConverter().convert(o);
-    return new JsonToBeanConverter().convert(Map.class, rawJson);
+    String rawJson = new Json().toJson(o);
+    return new Json().toType(rawJson, Map.class);
   }
 }

@@ -1,5 +1,3 @@
-# encoding: utf-8
-#
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'selenium/webdriver/ie/bridge'
+require 'selenium/webdriver/ie/driver'
+require 'selenium/webdriver/ie/options'
 require 'selenium/webdriver/ie/service'
 
 module Selenium

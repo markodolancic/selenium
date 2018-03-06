@@ -70,10 +70,10 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 @RunWith(JUnit4.class)
@@ -100,8 +100,8 @@ public class ExpectedConditionsTest {
     MockitoAnnotations.initMocks(this);
 
     wait = new FluentWait<>(mockDriver, mockClock, mockSleeper)
-      .withTimeout(1, TimeUnit.SECONDS)
-      .pollingEvery(250, TimeUnit.MILLISECONDS);
+      .withTimeout(Duration.ofSeconds(1))
+      .pollingEvery(Duration.ofMillis(250));
   }
 
   @Test
@@ -179,7 +179,7 @@ public class ExpectedConditionsTest {
     when(mockElement.isDisplayed()).thenReturn(false, false, true);
 
     assertSame(mockElement, wait.until(visibilityOf(mockElement)));
-    verify(mockSleeper, times(2)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(2)).sleep(Duration.ofMillis(250));
   }
 
   @Test
@@ -195,7 +195,7 @@ public class ExpectedConditionsTest {
     } catch (TimeoutException expected) {
       // Do nothing.
     }
-    verify(mockSleeper, times(1)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(1)).sleep(Duration.ofMillis(250));
   }
 
   @Test
@@ -213,7 +213,7 @@ public class ExpectedConditionsTest {
     when(mockElement.isDisplayed()).thenReturn(true, true, false);
 
     assertTrue(wait.until(not(visibilityOf(mockElement))));
-    verify(mockSleeper, times(2)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(2)).sleep(Duration.ofMillis(250));
   }
 
   @Test
@@ -229,12 +229,12 @@ public class ExpectedConditionsTest {
     } catch (TimeoutException expected) {
       // Do nothing.
     }
-    verify(mockSleeper, times(1)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(1)).sleep(Duration.ofMillis(250));
   }
 
   @Test
   public void invertingAConditionThatReturnsFalse() {
-    when(mockCondition.apply(mockDriver)).thenReturn(false);
+    when(mockCondition.apply(mockDriver)).thenReturn(new Boolean(false));
 
     assertTrue(wait.until(not(mockCondition)));
     verifyZeroInteractions(mockSleeper);
@@ -252,7 +252,7 @@ public class ExpectedConditionsTest {
   public void invertingAConditionThatAlwaysReturnsTrueTimesout() throws InterruptedException {
     when(mockClock.laterBy(1000L)).thenReturn(3000L);
     when(mockClock.isNowBefore(3000L)).thenReturn(true, false);
-    when(mockCondition.apply(mockDriver)).thenReturn(true);
+    when(mockCondition.apply(mockDriver)).thenReturn(new Boolean(true));
 
     try {
       wait.until(not(mockCondition));
@@ -260,7 +260,7 @@ public class ExpectedConditionsTest {
     } catch (TimeoutException expected) {
       // Do nothing.
     }
-    verify(mockSleeper, times(1)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(1)).sleep(Duration.ofMillis(250));
   }
 
   @Test
@@ -275,7 +275,7 @@ public class ExpectedConditionsTest {
     } catch (TimeoutException expected) {
       // Do nothing.
     }
-    verify(mockSleeper, times(1)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(1)).sleep(Duration.ofMillis(250));
   }
 
   @Test
@@ -290,7 +290,7 @@ public class ExpectedConditionsTest {
     } catch (TimeoutException expected) {
       // Do nothing.
     }
-    verify(mockSleeper, times(1)).sleep(new Duration(250, TimeUnit.MILLISECONDS));
+    verify(mockSleeper, times(1)).sleep(Duration.ofMillis(250));
   }
 
   @Test

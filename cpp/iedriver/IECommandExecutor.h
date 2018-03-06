@@ -24,9 +24,11 @@
 
 #include "command.h"
 #include "CustomTypes.h"
+#include "IElementManager.h"
 #include "messages.h"
 
-#define WAIT_TIME_IN_MILLISECONDS 200
+#define WAIT_TIME_IN_MILLISECONDS 50
+#define SCRIPT_WAIT_TIME_IN_MILLISECONDS 10
 #define FIND_ELEMENT_WAIT_TIME_IN_MILLISECONDS 250
 #define ASYNC_SCRIPT_EXECUTION_TIMEOUT_IN_MILLISECONDS 2000
 #define DEFAULT_FILE_UPLOAD_DIALOG_TIMEOUT_IN_MILLISECONDS 3000
@@ -34,6 +36,8 @@
 #define IGNORE_UNEXPECTED_ALERTS "ignore"
 #define ACCEPT_UNEXPECTED_ALERTS "accept"
 #define DISMISS_UNEXPECTED_ALERTS "dismiss"
+#define ACCEPT_AND_NOTIFY_UNEXPECTED_ALERTS "accept and notify"
+#define DISMISS_AND_NOTIFY_UNEXPECTED_ALERTS "dismiss and notify"
 #define NORMAL_PAGE_LOAD_STRATEGY "normal"
 #define EAGER_PAGE_LOAD_STRATEGY "eager"
 #define NONE_PAGE_LOAD_STRATEGY "none"
@@ -52,7 +56,7 @@ class ProxyManager;
 // want to synchronize access to the command handler. For that we
 // use SendMessage() most of the time, and SendMessage() requires
 // a window handle.
-class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
+class IECommandExecutor : public CWindowImpl<IECommandExecutor>, public IElementManager {
  public:
   DECLARE_WND_CLASS(L"WebDriverWndClass")
 
@@ -72,6 +76,9 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
     MESSAGE_HANDLER(WD_REFRESH_MANAGED_ELEMENTS, OnRefreshManagedElements)
     MESSAGE_HANDLER(WD_HANDLE_UNEXPECTED_ALERTS, OnHandleUnexpectedAlerts)
     MESSAGE_HANDLER(WD_QUIT, OnQuit)
+    MESSAGE_HANDLER(WD_SCRIPT_WAIT, OnScriptWait)
+    MESSAGE_HANDLER(WD_ASYNC_SCRIPT_TRANSFER_MANAGED_ELEMENT, OnTransferManagedElement)
+    MESSAGE_HANDLER(WD_ASYNC_SCRIPT_SCHEDULE_REMOVE_MANAGED_ELEMENT, OnScheduleRemoveManagedElement)
   END_MSG_MAP()
 
   LRESULT OnCreate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
@@ -89,11 +96,15 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
   LRESULT OnRefreshManagedElements(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
   LRESULT OnHandleUnexpectedAlerts(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
   LRESULT OnQuit(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+  LRESULT OnScriptWait(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+  LRESULT OnTransferManagedElement(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+  LRESULT OnScheduleRemoveManagedElement(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
 
   std::string session_id(void) const { return this->session_id_; }
 
   static unsigned int WINAPI ThreadProc(LPVOID lpParameter);
   static unsigned int WINAPI WaitThreadProc(LPVOID lpParameter);
+  static unsigned int WINAPI ScriptWaitThreadProc(LPVOID lpParameter);
 
   std::string current_browser_id(void) const { 
     return this->current_browser_id_; 
@@ -112,7 +123,7 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
 
   int GetManagedElement(const std::string& element_id,
                         ElementHandle* element_wrapper) const;
-  void AddManagedElement(IHTMLElement* element,
+  bool AddManagedElement(IHTMLElement* element,
                          ElementHandle* element_wrapper);
   void RemoveManagedElement(const std::string& element_id);
   void ListManagedElements(void);
@@ -128,20 +139,23 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
                      const std::string& criteria,
                      Json::Value* found_elements) const;
 
-  int implicit_wait_timeout(void) const { 
+  HWND window_handle(void) const { return this->m_hWnd; }
+  IElementManager* element_manager(void) { return this; }
+
+  unsigned long long implicit_wait_timeout(void) const {
     return this->implicit_wait_timeout_; 
   }
-  void set_implicit_wait_timeout(const int timeout) { 
+  void set_implicit_wait_timeout(const unsigned long long timeout) {
     this->implicit_wait_timeout_ = timeout; 
   }
 
-  int async_script_timeout(void) const { return this->async_script_timeout_;  }
-  void set_async_script_timeout(const int timeout) {
+  unsigned long long  async_script_timeout(void) const { return this->async_script_timeout_;  }
+  void set_async_script_timeout(const unsigned long long timeout) {
     this->async_script_timeout_ = timeout;
   }
 
-  int page_load_timeout(void) const { return this->page_load_timeout_;  }
-  void set_page_load_timeout(const int timeout) {
+  unsigned long long page_load_timeout(void) const { return this->page_load_timeout_;  }
+  void set_page_load_timeout(const unsigned long long timeout) {
     this->page_load_timeout_ = timeout;
   }
 
@@ -153,20 +167,6 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
   bool is_quitting(void) const { return this->is_quitting_; }
   void set_is_quitting(const bool session_is_quitting) {
     this->is_quitting_ = session_is_quitting; 
-  }
-
-  bool enable_element_cache_cleanup(void) const {
-    return this->enable_element_cache_cleanup_;
-  }
-  void set_enable_element_cache_cleanup(const bool enable_element_cache_cleanup) {
-    this->enable_element_cache_cleanup_ = enable_element_cache_cleanup;
-  }
-
-  bool enable_persistent_hover(void) const {
-    return this->enable_persistent_hover_;
-  }
-  void set_enable_persistent_hover(const bool enable_persistent_hover) {
-    this->enable_persistent_hover_ = enable_persistent_hover;
   }
 
   std::string unexpected_alert_behavior(void) const {
@@ -183,18 +183,18 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
     this->page_load_strategy_ = page_load_strategy;
   }
 
+  bool use_legacy_file_upload_dialog_handling(void) const {
+    return this->use_legacy_file_upload_dialog_handling_;
+  }
+  void set_use_legacy_file_upload_dialog_handling(const bool use_legacy_dialog_handling) {
+    this->use_legacy_file_upload_dialog_handling_ = use_legacy_dialog_handling;
+  }
+
   int file_upload_dialog_timeout(void) const {
     return this->file_upload_dialog_timeout_;
   }
   void set_file_upload_dialog_timeout(const int file_upload_dialog_timeout) {
     this->file_upload_dialog_timeout_ = file_upload_dialog_timeout;
-  }
-
-  bool enable_full_page_screenshot(void) const {
-    return this->enable_full_page_screenshot_;
-  }
-  void set_enable_full_page_screenshot(const bool enable_full_page_screenshot) {
-    this->enable_full_page_screenshot_ = enable_full_page_screenshot;
   }
 
   ElementFinder* element_finder(void) const { return this->element_finder_; }
@@ -209,7 +209,7 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
   }
 
  private:
-  typedef std::tr1::unordered_map<std::string, BrowserHandle> BrowserMap;
+  typedef std::unordered_map<std::string, BrowserHandle> BrowserMap;
   typedef std::map<std::string, std::wstring> ElementFindMethodMap;
 
   void AddManagedBrowser(BrowserHandle browser_wrapper);
@@ -219,9 +219,10 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
   void PopulateElementFinderMethods(void);
 
   bool IsAlertActive(BrowserHandle browser, HWND* alert_handle);
-  std::string HandleUnexpectedAlert(BrowserHandle browser,
-                                    HWND alert_handle,
-                                    bool force_use_dismiss);
+  bool HandleUnexpectedAlert(BrowserHandle browser,
+                             HWND alert_handle,
+                             bool force_use_dismiss,
+                             std::string* alert_text);
 
   BrowserMap managed_browsers_;
   ElementRepository* managed_elements_;
@@ -232,20 +233,19 @@ class IECommandExecutor : public CWindowImpl<IECommandExecutor> {
 
   ElementFinder* element_finder_;
 
-  int implicit_wait_timeout_;
-  int async_script_timeout_;
-  int page_load_timeout_;
+  unsigned long long implicit_wait_timeout_;
+  unsigned long long  async_script_timeout_;
+  unsigned long long  page_load_timeout_;
   clock_t wait_timeout_;
 
   std::string session_id_;
   int port_;
-  bool enable_persistent_hover_;
-  bool enable_element_cache_cleanup_;
   bool ignore_zoom_setting_;
   std::string initial_browser_url_;
   std::string unexpected_alert_behavior_;
   std::string page_load_strategy_;
   int file_upload_dialog_timeout_;
+  bool use_legacy_file_upload_dialog_handling_;
   bool enable_full_page_screenshot_;
 
   Command current_command_;

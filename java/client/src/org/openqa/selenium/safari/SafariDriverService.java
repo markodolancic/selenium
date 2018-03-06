@@ -22,6 +22,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.net.PortProber;
 import org.openqa.selenium.remote.service.DriverService;
@@ -41,13 +42,25 @@ public class SafariDriverService extends DriverService {
     super(executable, port, args, environment);
   }
 
+  public static SafariDriverService createDefaultService() {
+    return createDefaultService(new SafariOptions());
+  }
+
+  /**
+   * Use {@link #createDefaultService()} instead.
+   */
+  @Deprecated
   public static SafariDriverService createDefaultService(SafariOptions options) {
     File exe = options.getUseTechnologyPreview() ?
                TP_SAFARI_DRIVER_EXECUTABLE : SAFARI_DRIVER_EXECUTABLE;
     if (exe.exists()) {
       return new Builder().usingPort(options.getPort()).usingDriverExecutable(exe).build();
     }
-    return null;
+    throw new WebDriverException("SafariDriver requires Safari 10 running on OSX El Capitan or greater.");
+  }
+
+  static SafariDriverService createDefaultService(Capabilities caps) {
+    return createDefaultService(new SafariOptions(caps));
   }
 
   @Override

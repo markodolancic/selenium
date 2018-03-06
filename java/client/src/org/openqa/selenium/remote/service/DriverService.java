@@ -149,10 +149,7 @@ public class DriverService {
   public boolean isRunning() {
     lock.lock();
     try {
-      if (process == null) {
-        return false;
-      }
-      return process.isRunning();
+      return process != null && process.isRunning();
     } catch (IllegalThreadStateException e) {
       return true;
     } finally {
@@ -189,13 +186,15 @@ public class DriverService {
       URL status = new URL(url.toString() + "/status");
       new UrlChecker().waitUntilAvailable(20, SECONDS, status);
     } catch (UrlChecker.TimeoutException e) {
-      process.checkForError();
+      if (process != null && !process.isRunning()) {
+        process.checkForError();
+      }
       throw new WebDriverException("Timed out waiting for driver server to start.", e);
     }
   }
 
   /**
-   * Stops this service is it is currently running. This method will attempt to block until the
+   * Stops this service if it is currently running. This method will attempt to block until the
    * server has been fully shutdown.
    *
    * @see #start()
@@ -209,13 +208,15 @@ public class DriverService {
         return;
       }
 
-      try {
-        URL killUrl = new URL(url.toString() + "/shutdown");
-        new UrlChecker().waitUntilUnavailable(3, SECONDS, killUrl);
-      } catch (MalformedURLException e) {
-        toThrow = new WebDriverException(e);
-      } catch (UrlChecker.TimeoutException e) {
-        toThrow = new WebDriverException("Timed out waiting for driver server to shutdown.", e);
+      if (hasShutdownEndpoint()) {
+        try {
+          URL killUrl = new URL(url.toString() + "/shutdown");
+          new UrlChecker().waitUntilUnavailable(3, SECONDS, killUrl);
+        } catch (MalformedURLException e) {
+          toThrow = new WebDriverException(e);
+        } catch (UrlChecker.TimeoutException e) {
+          toThrow = new WebDriverException("Timed out waiting for driver server to shutdown.", e);
+        }
       }
 
       process.destroy();
@@ -229,6 +230,14 @@ public class DriverService {
     }
   }
 
+  protected boolean hasShutdownEndpoint() {
+    return true;
+  }
+
+  /**
+   * @deprecated Visibility will be restricted to 'protected' soon.
+   */
+  @Deprecated
   public void sendOutputTo(OutputStream outputStream) {
     this.outputStream = Preconditions.checkNotNull(outputStream);
   }
@@ -237,7 +246,7 @@ public class DriverService {
     return outputStream;
   }
 
-  public static abstract class Builder<DS extends DriverService, B extends Builder> {
+  public static abstract class Builder<DS extends DriverService, B extends Builder<?, ?>> {
 
     private int port = 0;
     private File exe = null;
@@ -250,6 +259,7 @@ public class DriverService {
      * @param file The executable to use.
      * @return A self reference.
      */
+    @SuppressWarnings("unchecked")
     public B usingDriverExecutable(File file) {
       checkNotNull(file);
       checkExecutable(file);

@@ -27,12 +27,11 @@ import com.google.gson.annotations.SerializedName;
 import org.openqa.grid.common.exception.GridConfigurationException;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration.CollectionOfDesiredCapabilitiesDeSerializer;
-import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration.CollectionOfDesiredCapabilitiesSerializer;
-import org.openqa.selenium.Platform;
-import org.openqa.selenium.net.NetworkUtils;
-import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.MutableCapabilities;
 
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Helper to register to the grid. Using JSON to exchange the object between the node and the hub.
@@ -102,9 +101,9 @@ public class RegistrationRequest {
     this.description = description;
 
     // make sure we have something that looks like a valid host
-    fixUpHost();
+    this.configuration.fixUpHost();
     // make sure the capabilities are updated with required fields
-    fixUpCapabilities();
+    this.configuration.fixUpCapabilities();
   }
 
   public String getName() {
@@ -119,14 +118,13 @@ public class RegistrationRequest {
     return configuration;
   }
 
-  public JsonObject toJson() {
-    GsonBuilder builder = new GsonBuilder();
-    builder.registerTypeAdapter(new TypeToken<List<DesiredCapabilities>>(){}.getType(),
-                                new CollectionOfDesiredCapabilitiesSerializer());
-
-    // note: it's very important that nulls are serialized for this type.
-    return builder.serializeNulls().excludeFieldsWithoutExposeAnnotation().create()
-      .toJsonTree(this, RegistrationRequest.class).getAsJsonObject();
+  public Map<String, Object> toJson() {
+    Map<String, Object> json = new TreeMap<>();
+    json.put("class", getClass());
+    json.put("name", getName());
+    json.put("description", getDescription());
+    json.put("configuration", getConfiguration());
+    return json;
   }
 
   /**
@@ -137,7 +135,7 @@ public class RegistrationRequest {
    */
   public static RegistrationRequest fromJson(JsonObject json) throws JsonSyntaxException {
     GsonBuilder builder = new GsonBuilder();
-    builder.registerTypeAdapter(new TypeToken<List<DesiredCapabilities>>(){}.getType(),
+    builder.registerTypeAdapter(new TypeToken<List<MutableCapabilities>>(){}.getType(),
                                 new CollectionOfDesiredCapabilitiesDeSerializer());
 
     RegistrationRequest request = builder.excludeFieldsWithoutExposeAnnotation().create()
@@ -154,7 +152,7 @@ public class RegistrationRequest {
    */
   public static RegistrationRequest fromJson(String json) throws JsonSyntaxException {
     GsonBuilder builder = new GsonBuilder();
-    builder.registerTypeAdapter(new TypeToken<List<DesiredCapabilities>>(){}.getType(),
+    builder.registerTypeAdapter(new TypeToken<List<MutableCapabilities>>(){}.getType(),
                                 new CollectionOfDesiredCapabilitiesDeSerializer());
 
     RegistrationRequest request = builder.excludeFieldsWithoutExposeAnnotation().create()
@@ -230,37 +228,12 @@ public class RegistrationRequest {
     }
 
     // make sure we have a valid host
-    pendingRequest.fixUpHost();
+    pendingRequest.configuration.fixUpHost();
     // make sure the capabilities are updated with required fields
-    pendingRequest.fixUpCapabilities();
+    pendingRequest.configuration.fixUpCapabilities();
+    pendingRequest.configuration.dropCapabilitiesThatDoesNotMatchCurrentPlatform();
 
     return pendingRequest;
-  }
-
-  private void fixUpCapabilities() {
-    if (configuration.capabilities == null) {
-      return; // assumes the caller set it/wants it this way
-    }
-
-    Platform current = Platform.getCurrent();
-    for (DesiredCapabilities cap : configuration.capabilities) {
-      if (cap.getPlatform() == null) {
-        cap.setPlatform(current);
-      }
-      if (cap.getCapability(SELENIUM_PROTOCOL) == null) {
-        cap.setCapability(SELENIUM_PROTOCOL, SeleniumProtocol.WebDriver.toString());
-      }
-    }
-  }
-
-  private void fixUpHost() {
-    if (configuration.host == null || "ip".equalsIgnoreCase(configuration.host)) {
-      NetworkUtils util = new NetworkUtils();
-      configuration.host = util.getIp4NonLoopbackAddressOfThisMachine().getHostAddress();
-    } else if ("host".equalsIgnoreCase(configuration.host)) {
-      NetworkUtils util = new NetworkUtils();
-      configuration.host = util.getIp4NonLoopbackAddressOfThisMachine().getHostName();
-    }
   }
 
   /**

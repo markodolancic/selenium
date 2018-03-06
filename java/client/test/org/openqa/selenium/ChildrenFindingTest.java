@@ -18,23 +18,30 @@
 package org.openqa.selenium;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 import static org.openqa.selenium.testing.Driver.CHROME;
 import static org.openqa.selenium.testing.Driver.IE;
-import static org.openqa.selenium.testing.Driver.REMOTE;
+import static org.openqa.selenium.testing.Driver.SAFARI;
+import static org.openqa.selenium.testing.TestUtilities.catchThrowable;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 
 import java.util.List;
-
+import org.openqa.selenium.testing.NotYetImplemented;
 
 public class ChildrenFindingTest extends JUnit4TestBase {
+
+  @Rule
+  public final ExpectedException expectedException = ExpectedException.none();
+
   @Test
   public void testFindElementByXPath() {
     driver.get(pages.nestedPage);
@@ -64,14 +71,9 @@ public class ChildrenFindingTest extends JUnit4TestBase {
   @Test
   public void testFindElementByXPathWhenNoMatch() {
     driver.get(pages.nestedPage);
-
     WebElement element = driver.findElement(By.name("form2"));
-    try {
-      element.findElement(By.xpath(".//select/x"));
-      fail("Did not expect to find element");
-    } catch (NoSuchElementException ignored) {
-      // this is expected
-    }
+    Throwable t = catchThrowable(() -> element.findElement(By.xpath(".//select/x")));
+    assertThat(t, instanceOf(NoSuchElementException.class));
   }
 
   @Test
@@ -124,10 +126,9 @@ public class ChildrenFindingTest extends JUnit4TestBase {
     assertThat(child.getText(), is("inside"));
   }
 
-  @Ignore(
-      value = {CHROME, IE},
-      reason = "Need to recompile drivers with atoms from 6c55320d3f0eb23de56270a55c74602fc8d63c8a")
   @Test
+  @Ignore(value = CHROME,
+      reason = "Need to recompile drivers with atoms from 6c55320d3f0eb23de56270a55c74602fc8d63c8a")
   public void testFindElementByIdWhenIdContainsNonAlphanumericCharacters() {
     driver.get(pages.nestedPage);
     WebElement element = driver.findElement(By.id("test_special_chars"));
@@ -141,12 +142,8 @@ public class ChildrenFindingTest extends JUnit4TestBase {
   public void testFindElementByIdWhenNoMatchInContext() {
     driver.get(pages.nestedPage);
     WebElement element = driver.findElement(By.id("test_id_div"));
-    try {
-      element.findElement(By.id("test_id_out"));
-      fail();
-    } catch (NoSuchElementException e) {
-      // This is expected
-    }
+    Throwable t = catchThrowable(() -> element.findElement(By.id("test_id_out")));
+    assertThat(t, instanceOf(NoSuchElementException.class));
   }
 
   @Test
@@ -157,10 +154,9 @@ public class ChildrenFindingTest extends JUnit4TestBase {
     assertThat(children.size(), is(2));
   }
 
-  @Ignore(
-      value = {CHROME, IE},
-      reason = "Need to recompile drivers with atoms from 6c55320d3f0eb23de56270a55c74602fc8d63c8a")
   @Test
+  @Ignore(value = CHROME,
+      reason = "Need to recompile drivers with atoms from 6c55320d3f0eb23de56270a55c74602fc8d63c8a")
   public void testFindElementsByIdWithNonAlphanumericCharacters() {
     driver.get(pages.nestedPage);
     WebElement element = driver.findElement(By.id("test_special_chars"));
@@ -189,6 +185,26 @@ public class ChildrenFindingTest extends JUnit4TestBase {
     assertEquals(2, elements.size());
     assertThat(elements.get(0).getAttribute("name"), is("link1"));
     assertThat(elements.get(1).getAttribute("name"), is("link2"));
+  }
+
+  @Test
+  public void testShouldFindChildElementsById() {
+    driver.get(pages.nestedPage);
+    WebElement parent = driver.findElement(By.id("test_id_div"));
+    WebElement element = parent.findElement(By.id("test_id"));
+    assertEquals("inside", element.getText());
+  }
+
+  @Test
+  @NotYetImplemented(value = CHROME, reason = "Need to release atoms fix from #4351")
+  @NotYetImplemented(value = IE, reason = "Need to release atoms fix from #4351")
+  public void testShouldNotReturnRootElementWhenFindingChildrenById() {
+    driver.get(pages.nestedPage);
+    WebElement parent = driver.findElement(By.id("test_id"));
+
+    assertEquals(0, parent.findElements(By.id("test_id")).size());
+    expectedException.expect(NoSuchElementException.class);
+    parent.findElement(By.id("test_id"));
   }
 
   @Test
@@ -290,11 +306,8 @@ public class ChildrenFindingTest extends JUnit4TestBase {
   public void testShouldNotFindElementOutSideTree() {
     driver.get(pages.formPage);
     WebElement element = driver.findElement(By.name("login"));
-    try {
-      element.findElement(By.name("x"));
-    } catch (NoSuchElementException e) {
-      // this is expected
-    }
+    Throwable t = catchThrowable(() -> element.findElement(By.name("x")));
+    assertThat(t, instanceOf(NoSuchElementException.class));
   }
 
   @Test
@@ -315,20 +328,18 @@ public class ChildrenFindingTest extends JUnit4TestBase {
     assertEquals("child", child.getAttribute("id"));
   }
 
-  @Ignore({REMOTE})
   @Test
   public void testFindMultipleElements() {
     driver.get(pages.simpleTestPage);
     WebElement elem = driver.findElement(By.id("links"));
 
-    List<WebElement> elements =
-        elem.findElements(By.partialLinkText("link"));
+    List<WebElement> elements = elem.findElements(By.partialLinkText("link"));
     assertNotNull(elements);
     assertEquals(6, elements.size());
   }
 
-  @Ignore({REMOTE})
   @Test
+  @NotYetImplemented(SAFARI)
   public void testLinkWithLeadingSpaces() {
     driver.get(pages.simpleTestPage);
     WebElement elem = driver.findElement(By.id("links"));
@@ -337,8 +348,8 @@ public class ChildrenFindingTest extends JUnit4TestBase {
     assertEquals("link with leading space", res.getText());
   }
 
-  @Ignore({REMOTE})
   @Test
+  @NotYetImplemented(SAFARI)
   public void testLinkWithTrailingSpace() {
     driver.get(pages.simpleTestPage);
     WebElement elem = driver.findElement(By.id("links"));
@@ -352,12 +363,7 @@ public class ChildrenFindingTest extends JUnit4TestBase {
     driver.get(pages.simpleTestPage);
     WebElement elem = driver.findElement(By.id("links"));
 
-    WebElement link = null;
-    try {
-      link = elem.findElement(By.linkText("link with trailing space"));
-    } catch (NoSuchElementException e) {
-      fail("Should have found link");
-    }
+    WebElement link = elem.findElement(By.linkText("link with trailing space"));
     assertEquals("linkWithTrailingSpace", link.getAttribute("id"));
   }
 

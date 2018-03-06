@@ -17,7 +17,6 @@
 
 package org.openqa.selenium.remote.server.rest;
 
-import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
 
 import org.openqa.selenium.NoSuchSessionException;
@@ -41,6 +40,7 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -53,7 +53,8 @@ public class ResultConfig {
 
   public ResultConfig(
       String commandName, Class<? extends RestishHandler<?>> handlerClazz,
-      DriverSessions sessions, Logger log) {
+      DriverSessions sessions,
+      Logger log) {
     if (commandName == null || handlerClazz == null) {
       throw new IllegalArgumentException("You must specify the handler and the command name");
     }
@@ -69,7 +70,7 @@ public class ResultConfig {
     RestishHandler<?> createHandler(SessionId sessionId) throws Exception;
   }
 
-  protected RestishHandler populate(RestishHandler handler, Command command) {
+  protected RestishHandler<?> populate(RestishHandler<?> handler, Command command) {
     for (Map.Entry<String, ?> entry : command.getParameters().entrySet()) {
       try {
         PropertyMunger.set(entry.getKey(), handler, entry.getValue());
@@ -132,9 +133,9 @@ public class ResultConfig {
       Throwable toUse = getRootExceptionCause(e);
 
       log.warning("Exception: " + toUse.getMessage());
-      Optional<String> screenshot = Optional.absent();
+      Optional<String> screenshot = Optional.empty();
       if (handler instanceof WebDriverHandler) {
-        screenshot = Optional.fromNullable(((WebDriverHandler) handler).getScreenshot());
+        screenshot = Optional.ofNullable(((WebDriverHandler<?>) handler).getScreenshot());
       }
       response = Responses.failure(sessionId, toUse, screenshot);
     } catch (Error e) {
@@ -147,7 +148,6 @@ public class ResultConfig {
       final PerSessionLogHandler logHandler = LoggingManager.perSessionLogHandler();
       logHandler.transferThreadTempLogsToSessionLogs(sessionId);
       logHandler.removeSessionLogs(sessionId);
-      sessions.deleteSession(sessionId);
     }
     return response;
   }
@@ -208,13 +208,13 @@ public class ResultConfig {
           sessionAware.newInstance(sessionId != null ? sessions.get(sessionId) : null);
     }
 
-    final Constructor<? extends RestishHandler> driverSessions =
+    final Constructor<? extends RestishHandler<?>> driverSessions =
         getConstructor(handlerClazz, DriverSessions.class);
     if (driverSessions != null) {
       return (sessionId) -> driverSessions.newInstance(sessions);
     }
 
-    final Constructor<? extends RestishHandler> noArgs = getConstructor(handlerClazz);
+    final Constructor<? extends RestishHandler<?>> noArgs = getConstructor(handlerClazz);
     if (noArgs != null) {
       return (sessionId) -> noArgs.newInstance();
     }
@@ -223,7 +223,7 @@ public class ResultConfig {
   }
 
   private static Constructor<? extends RestishHandler<?>> getConstructor(
-      Class<? extends RestishHandler<?>> handlerClazz, Class... types) {
+      Class<? extends RestishHandler<?>> handlerClazz, Class<?>... types) {
     try {
       return handlerClazz.getConstructor(types);
     } catch (NoSuchMethodException e) {

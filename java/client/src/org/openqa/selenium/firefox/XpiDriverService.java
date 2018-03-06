@@ -18,25 +18,35 @@
 package org.openqa.selenium.firefox;
 
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.openqa.selenium.firefox.FirefoxOptions.FIREFOX_OPTIONS;
 import static org.openqa.selenium.firefox.FirefoxProfile.PORT_PREFERENCE;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.ByteStreams;
 
+import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.firefox.internal.ClasspathExtension;
 import org.openqa.selenium.firefox.internal.Extension;
 import org.openqa.selenium.firefox.internal.FileExtension;
+import org.openqa.selenium.net.UrlChecker;
 import org.openqa.selenium.remote.service.DriverService;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class XpiDriverService extends DriverService {
 
@@ -53,7 +63,8 @@ public class XpiDriverService extends DriverService {
       ImmutableList<String> args,
       ImmutableMap<String, String> environment,
       FirefoxBinary binary,
-      FirefoxProfile profile)
+      FirefoxProfile profile,
+      File logFile)
       throws IOException {
     super(executable, port, args, environment);
 
@@ -64,18 +75,29 @@ public class XpiDriverService extends DriverService {
     this.profile = profile;
 
     String firefoxLogFile = System.getProperty(FirefoxDriver.SystemProperty.BROWSER_LOGFILE);
-
-    if (firefoxLogFile !=  null) {
+    if (firefoxLogFile != null) { // System property has higher precedence
       if ("/dev/stdout".equals(firefoxLogFile)) {
         sendOutputTo(System.out);
+      } else if ("/dev/stderr".equals(firefoxLogFile)) {
+        sendOutputTo(System.err);
+      } else if ("/dev/null".equals(firefoxLogFile)) {
+        sendOutputTo(ByteStreams.nullOutputStream());
       } else {
+        // TODO: This stream is leaked.
         sendOutputTo(new FileOutputStream(firefoxLogFile));
+      }
+    } else {
+      if (logFile != null) {
+        // TODO: This stream is leaked.
+        sendOutputTo(new FileOutputStream(logFile));
+      } else {
+        sendOutputTo(ByteStreams.nullOutputStream());
       }
     }
   }
 
   @Override
-  protected URL getUrl(int port) throws IOException {
+  protected URL getUrl(int port) throws MalformedURLException {
     return new URL("http", "localhost", port, "/hub");
   }
 
@@ -94,6 +116,19 @@ public class XpiDriverService extends DriverService {
       waitUntilAvailable();
     } finally {
       lock.unlock();
+    }
+  }
+
+  @Override
+  protected void waitUntilAvailable() throws MalformedURLException {
+    try {
+      // Use a longer timeout, because 45 seconds was the default timeout in the predecessor to
+      // XpiDriverService. This has to wait for Firefox to start, not just a service, and some users
+      // may be running tests on really slow machines.
+      URL status = new URL(getUrl(port).toString() + "/status");
+      new UrlChecker().waitUntilAvailable(45, SECONDS, status);
+    } catch (UrlChecker.TimeoutException e) {
+      throw new WebDriverException("Timed out waiting 45 seconds for Firefox to start.", e);
     }
   }
 
@@ -146,6 +181,60 @@ public class XpiDriverService extends DriverService {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  static XpiDriverService createDefaultService(Capabilities caps) {
+    Builder builder = new Builder().usingAnyFreePort();
+
+    FirefoxProfile profile = Stream.<ThrowingSupplier<FirefoxProfile>>of(
+        () -> (FirefoxProfile) caps.getCapability(FirefoxDriver.PROFILE),
+        () -> FirefoxProfile.fromJson((String) caps.getCapability(FirefoxDriver.PROFILE)),
+        () -> ((FirefoxOptions) caps).getProfile(),
+        () -> (FirefoxProfile) ((Map<String, Object>) caps.getCapability(FIREFOX_OPTIONS)).get("profile"),
+        () -> FirefoxProfile.fromJson((String) ((Map<String, Object>) caps.getCapability(FIREFOX_OPTIONS)).get("profile")),
+        () -> {
+          Map<String, Object> options = (Map<String, Object>) caps.getCapability(FIREFOX_OPTIONS);
+          FirefoxProfile toReturn = new FirefoxProfile();
+          ((Map<String, Object>) options.get("prefs")).forEach((key, value) -> {
+            if (value instanceof Boolean) { toReturn.setPreference(key, (Boolean) value); }
+            if (value instanceof Integer) { toReturn.setPreference(key, (Integer) value); }
+            if (value instanceof String) { toReturn.setPreference(key, (String) value); }
+          });
+          return toReturn;
+        })
+        .map(supplier -> {
+          try {
+            return supplier.get();
+          } catch (Exception e) {
+            return null;
+          }
+        })
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElse(null);
+
+    if (profile != null) {
+      builder.withProfile(profile);
+    }
+
+    Object binary = caps.getCapability(FirefoxDriver.BINARY);
+    if (binary != null) {
+      FirefoxBinary actualBinary;
+      if (binary instanceof FirefoxBinary) {
+        actualBinary = (FirefoxBinary) binary;
+      } else if (binary instanceof String) {
+        actualBinary = new FirefoxBinary(new File(String.valueOf(binary)));
+      } else {
+        throw new IllegalArgumentException(
+            "Expected binary to be a string or a binary: " + binary);
+      }
+
+      builder.withBinary(actualBinary);
+    }
+
+    return builder.build();
+
+  }
+
   public static Builder builder() {
     return new Builder();
   }
@@ -171,7 +260,10 @@ public class XpiDriverService extends DriverService {
 
     @Override
     protected File findDefaultExecutable() {
-      return new FirefoxBinary().getFile();
+      if (binary == null) {
+        return new FirefoxBinary().getFile();
+      }
+      return binary.getFile();
     }
 
     @Override
@@ -192,9 +284,29 @@ public class XpiDriverService extends DriverService {
             args,
             environment,
             binary == null ? new FirefoxBinary() : binary,
-            profile == null ? new FirefoxProfile() : profile);
+            profile == null ? new FirefoxProfile() : profile,
+            getLogFile());
       } catch (IOException e) {
         throw new WebDriverException(e);
+      }
+    }
+  }
+
+  @FunctionalInterface
+  private interface ThrowingSupplier<V> extends Supplier<V> {
+
+    V throwingGet() throws Exception;
+
+    @Override
+    default V get() {
+      try {
+        return throwingGet();
+      } catch (Exception e) {
+        if (e instanceof RuntimeException) {
+          throw (RuntimeException) e;
+        } else {
+          throw new RuntimeException(e);
+        }
       }
     }
   }

@@ -39,7 +39,7 @@ void ClickElementCommandHandler::ExecuteInternal(const IECommandExecutor& execut
                       Response* response) {
   ParametersMap::const_iterator id_parameter_iterator = command_parameters.find("id");
   if (id_parameter_iterator == command_parameters.end()) {
-    response->SetErrorResponse(400, "Missing parameter in URL: id");
+    response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Missing parameter in URL: id");
     return;
   } else {
     int status_code = WD_SUCCESS;
@@ -58,7 +58,8 @@ void ClickElementCommandHandler::ExecuteInternal(const IECommandExecutor& execut
       if (executor.input_manager()->enable_native_events()) {
         if (this->IsOptionElement(element_wrapper)) {
           std::string option_click_error = "";
-          status_code = this->ExecuteAtom(this->GetClickAtom(),
+          status_code = this->ExecuteAtom(executor,
+                                          this->GetClickAtom(),
                                           browser_wrapper,
                                           element_wrapper,
                                           &option_click_error);
@@ -68,36 +69,65 @@ void ClickElementCommandHandler::ExecuteInternal(const IECommandExecutor& execut
           }
         } else {
           Json::Value move_action;
-          move_action["action"] = "moveto";
-          move_action["element"] = element_wrapper->element_id();
+          move_action["type"] = "pointerMove";
+          move_action["origin"] = element_wrapper->ConvertToJson();
+          move_action["duration"] = 0;
 
-          Json::Value click_action;
-          click_action["action"] = "click";
-          click_action["button"] = 0;
+          Json::Value down_action;
+          down_action["type"] = "pointerDown";
+          down_action["button"] = 0;
             
-          Json::UInt index = 0;
+          Json::Value up_action;
+          up_action["type"] = "pointerUp";
+          up_action["button"] = 0;
+
+          Json::Value action_array(Json::arrayValue);
+          action_array.append(move_action);
+          action_array.append(down_action);
+          action_array.append(up_action);
+            
+          Json::Value parameters_value;
+          parameters_value["pointerType"] = "mouse";
+
+          Json::Value value;
+          value["type"] = "pointer";
+          value["id"] = "click action mouse";
+          value["parameters"] = parameters_value;
+          value["actions"] = action_array;
+
           Json::Value actions(Json::arrayValue);
-          actions[index] = move_action;
-          ++index;
-          actions[index] = click_action;
-            
-          // Check to make sure we're not within the double-click time for this element
-          // since the last click.
+          actions.append(value);
+
           int double_click_time = ::GetDoubleClickTime();
-          int time_since_last_click = static_cast<int>(static_cast<float>(clock() - element_wrapper->last_click_time()) / CLOCKS_PER_SEC * 1000);
-          if (time_since_last_click < double_click_time) {
-            ::Sleep(double_click_time - time_since_last_click + 10);
+          int milliseconds_since_last_click = (clock() - executor.input_manager()->last_click_time()) * CLOCKS_PER_SEC / 1000;
+          if (double_click_time - milliseconds_since_last_click > 0) {
+            ::Sleep(double_click_time - milliseconds_since_last_click);
+          }
+
+          // Scroll the target element into view before executing the action
+          // sequence.
+          LocationInfo location = {};
+          std::vector<LocationInfo> frame_locations;
+          status_code = element_wrapper->GetLocationOnceScrolledIntoView(executor.input_manager()->scroll_behavior(),
+                                                                         &location,
+                                                                         &frame_locations);
+
+          bool displayed;
+          status_code = element_wrapper->IsDisplayed(true, &displayed);
+          if (status_code != WD_SUCCESS || !displayed) {
+            response->SetErrorResponse(EELEMENTNOTDISPLAYED,
+                                       "Element is not displayed");
+            return;
           }
 
           IECommandExecutor& mutable_executor = const_cast<IECommandExecutor&>(executor);
           status_code = mutable_executor.input_manager()->PerformInputSequence(browser_wrapper, actions);
           browser_wrapper->set_wait_required(true);
-          element_wrapper->set_last_click_time(clock());
           if (status_code != WD_SUCCESS) {
             if (status_code == EELEMENTCLICKPOINTNOTSCROLLED) {
               // We hard-code the error code here to be "Element not visible"
               // to maintain compatibility with previous behavior.
-              response->SetErrorResponse(EELEMENTNOTDISPLAYED, "The point at which the driver is attempting to click on the element was not scrolled into the viewport.");
+              response->SetErrorResponse(ERROR_ELEMENT_NOT_INTERACTABLE, "The point at which the driver is attempting to click on the element was not scrolled into the viewport.");
             } else {
               response->SetErrorResponse(status_code, "Cannot click on element");
             }
@@ -113,11 +143,12 @@ void ClickElementCommandHandler::ExecuteInternal(const IECommandExecutor& execut
         } 
 
         if (!displayed) {
-          response->SetErrorResponse(EELEMENTNOTDISPLAYED, "Element is not displayed");
+          response->SetErrorResponse(ERROR_ELEMENT_NOT_INTERACTABLE, "Element is not displayed");
           return;
         }
         std::string synthetic_click_error = "";
-        status_code = this->ExecuteAtom(this->GetSyntheticClickAtom(),
+        status_code = this->ExecuteAtom(executor,
+                                        this->GetSyntheticClickAtom(),
                                         browser_wrapper,
                                         element_wrapper,
                                         &synthetic_click_error);
@@ -125,12 +156,15 @@ void ClickElementCommandHandler::ExecuteInternal(const IECommandExecutor& execut
           // This is a hack. We should change this when we can get proper error
           // codes back from the atoms. We'll assume the script failed because
           // the element isn't visible.
-          response->SetErrorResponse(EELEMENTNOTDISPLAYED, 
+          response->SetErrorResponse(ERROR_ELEMENT_NOT_INTERACTABLE,
               "Received a JavaScript error attempting to click on the element using synthetic events. We are assuming this is because the element isn't displayed, but it may be due to other problems with executing JavaScript.");
           return;
         }
         browser_wrapper->set_wait_required(true);
       }
+    } else if (status_code == ENOSUCHELEMENT) {
+      response->SetErrorResponse(ERROR_NO_SUCH_ELEMENT, "Invalid internal element ID requested: " + element_id);
+      return;
     } else {
       response->SetErrorResponse(status_code, "Element is no longer valid");
       return;
@@ -162,15 +196,21 @@ std::wstring ClickElementCommandHandler::GetClickAtom() {
 }
 
 int ClickElementCommandHandler::ExecuteAtom(
+    const IECommandExecutor& executor,
     const std::wstring& atom_script_source,
     BrowserHandle browser_wrapper,
     ElementHandle element_wrapper,
     std::string* error_msg) {
+  HWND async_executor_handle;
   CComPtr<IHTMLDocument2> doc;
   browser_wrapper->GetDocument(&doc);
-  Script script_wrapper(doc, atom_script_source, 1);
-  script_wrapper.AddArgument(element_wrapper);
-  int status_code = script_wrapper.ExecuteAsync(ASYNC_SCRIPT_EXECUTION_TIMEOUT_IN_MILLISECONDS);
+  Script script_wrapper(doc, atom_script_source);
+  Json::Value args(Json::arrayValue);
+  args.append(element_wrapper->ConvertToJson());
+  int status_code = script_wrapper.ExecuteAsync(executor,
+                                                args,
+                                                ASYNC_SCRIPT_EXECUTION_TIMEOUT_IN_MILLISECONDS,
+                                                &async_executor_handle);
   if (status_code != WD_SUCCESS) {
     if (script_wrapper.ResultIsString()) {
       std::wstring error = script_wrapper.result().bstrVal;

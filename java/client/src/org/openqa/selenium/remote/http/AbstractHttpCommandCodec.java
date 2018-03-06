@@ -17,13 +17,14 @@
 
 package org.openqa.selenium.remote.http;
 
-import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.net.HttpHeaders.CACHE_CONTROL;
 import static com.google.common.net.HttpHeaders.CONTENT_LENGTH;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.openqa.selenium.json.Json.MAP_TYPE;
 import static org.openqa.selenium.remote.DriverCommand.ADD_COOKIE;
 import static org.openqa.selenium.remote.DriverCommand.CLEAR_ELEMENT;
 import static org.openqa.selenium.remote.DriverCommand.CLICK_ELEMENT;
@@ -99,11 +100,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
 import org.openqa.selenium.UnsupportedCommandException;
+import org.openqa.selenium.json.Json;
 import org.openqa.selenium.net.Urls;
-import org.openqa.selenium.remote.BeanToJsonConverter;
 import org.openqa.selenium.remote.Command;
 import org.openqa.selenium.remote.CommandCodec;
-import org.openqa.selenium.remote.JsonToBeanConverter;
 import org.openqa.selenium.remote.SessionId;
 
 import java.util.HashMap;
@@ -119,10 +119,9 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
   private static final Splitter PATH_SPLITTER = Splitter.on('/').omitEmptyStrings();
   private static final String SESSION_ID_PARAM = "sessionId";
 
-  private final ConcurrentHashMap<String, CommandSpec> nameToSpec = new ConcurrentHashMap();
+  private final ConcurrentHashMap<String, CommandSpec> nameToSpec = new ConcurrentHashMap<>();
   private final Map<String, String> aliases = new HashMap<>();
-  private final BeanToJsonConverter beanToJsonConverter = new BeanToJsonConverter();
-  private final JsonToBeanConverter jsonToBeanConverter = new JsonToBeanConverter();
+  private final Json json = new Json();
 
   public AbstractHttpCommandCodec() {
     defineCommand(STATUS, get("/status"));
@@ -154,7 +153,7 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
 
     defineCommand(UPLOAD_FILE, post("/session/:sessionId/file"));
     defineCommand(SCREENSHOT, get("/session/:sessionId/screenshot"));
-    defineCommand(ELEMENT_SCREENSHOT, get("/session/:sessionId/screenshot/:id"));
+    defineCommand(ELEMENT_SCREENSHOT, get("/session/:sessionId/element/:id/screenshot"));
     defineCommand(GET_TITLE, get("/session/:sessionId/title"));
 
     defineCommand(FIND_ELEMENT, post("/session/:sessionId/element"));
@@ -226,7 +225,7 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
 
     if (HttpMethod.POST == spec.method) {
 
-      String content = beanToJsonConverter.convert(parameters);
+      String content = json.toJson(parameters);
       byte[] data = content.getBytes(UTF_8);
 
       request.setHeader(CONTENT_LENGTH, String.valueOf(data.length));
@@ -268,7 +267,7 @@ public abstract class AbstractHttpCommandCodec implements CommandCodec<HttpReque
     String content = encodedCommand.getContentString();
     if (!content.isEmpty()) {
       @SuppressWarnings("unchecked")
-      HashMap<String, ?> tmp = jsonToBeanConverter.convert(HashMap.class, content);
+      Map<String, Object> tmp = json.toType(content, MAP_TYPE);
       parameters.putAll(tmp);
     }
 

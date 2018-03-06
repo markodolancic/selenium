@@ -27,7 +27,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNotNull;
-import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -37,14 +37,13 @@ import static org.openqa.selenium.remote.CapabilityType.ACCEPT_SSL_CERTS;
 import static org.openqa.selenium.support.ui.ExpectedConditions.titleIs;
 import static org.openqa.selenium.testing.Driver.MARIONETTE;
 
-import com.google.common.base.Throwables;
-
 import org.junit.After;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.Dimension;
+import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.ParallelTestRunner;
 import org.openqa.selenium.ParallelTestRunner.Worker;
@@ -54,7 +53,6 @@ import org.openqa.selenium.firefox.internal.ProfilesIni;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.Command;
 import org.openqa.selenium.remote.CommandExecutor;
-import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.remote.DriverCommand;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.SessionId;
@@ -68,7 +66,6 @@ import org.openqa.selenium.testing.NeedsLocalEnvironment;
 import org.openqa.selenium.testing.NoDriverAfterTest;
 import org.openqa.selenium.testing.NotYetImplemented;
 import org.openqa.selenium.testing.drivers.SauceDriver;
-import org.openqa.selenium.testing.drivers.SynthesizedFirefoxDriver;
 import org.openqa.selenium.testing.drivers.WebDriverBuilder;
 
 import java.io.File;
@@ -114,16 +111,15 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     profile.setPreference("browser.startup.page", 1);
     profile.setPreference("browser.startup.homepage", pages.xhtmlTestPage);
 
-    localDriver = new FirefoxDriver(profile);
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
     wait.until($ -> "XHTML Test Page".equals(localDriver.getTitle()));
   }
 
   @Test
   public void canPassCapabilities() {
-    DesiredCapabilities capabilities = new DesiredCapabilities();
-    capabilities.setCapability(CapabilityType.PAGE_LOAD_STRATEGY, "none");
+    Capabilities caps = new ImmutableCapabilities(CapabilityType.PAGE_LOAD_STRATEGY, "none");
 
-    localDriver = new FirefoxDriver(capabilities);
+    localDriver = new FirefoxDriver(caps);
 
     assertEquals(
         "none",
@@ -158,8 +154,7 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     profile.setPreference("browser.startup.page", 1);
     profile.setPreference("browser.startup.homepage", pages.xhtmlTestPage);
 
-    DesiredCapabilities caps = new DesiredCapabilities();
-    caps.setCapability(FirefoxDriver.PROFILE, profile);
+    Capabilities caps = new ImmutableCapabilities(FirefoxDriver.PROFILE, profile);
 
     localDriver = new FirefoxDriver(caps);
     wait.until($ -> "XHTML Test Page".equals(localDriver.getTitle()));
@@ -169,8 +164,7 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   @Ignore(value = MARIONETTE, reason = "Assumed to be covered by tests for GeckoDriverService")
   public void canSetBinaryInCapabilities() throws IOException {
     FirefoxBinary binary = spy(new FirefoxBinary());
-    DesiredCapabilities caps = new DesiredCapabilities();
-    caps.setCapability(FirefoxDriver.BINARY, binary);
+    Capabilities caps = new ImmutableCapabilities(FirefoxDriver.BINARY, binary);
 
     localDriver = new FirefoxDriver(caps);
 
@@ -180,8 +174,7 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   @Test
   public void canSetBinaryPathInCapabilities() throws IOException {
     String binPath = new FirefoxBinary().getPath();
-    DesiredCapabilities caps = new DesiredCapabilities();
-    caps.setCapability(FirefoxDriver.BINARY, binPath);
+    Capabilities caps = new ImmutableCapabilities(FirefoxDriver.BINARY, binPath);
 
     localDriver = new FirefoxDriver(caps);
   }
@@ -228,7 +221,6 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     }
   }
 
-
   @NeedsFreshDriver
   @NoDriverAfterTest
   @Test
@@ -252,27 +244,21 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   public void shouldBeAbleToStartMoreThanOneInstanceOfTheFirefoxDriverSimultaneously() {
     WebDriver secondDriver = new FirefoxDriver();
 
-    driver.get(pages.xhtmlTestPage);
-    secondDriver.get(pages.formPage);
+    try {
+      driver.get(pages.xhtmlTestPage);
+      secondDriver.get(pages.formPage);
 
-    assertThat(driver.getTitle(), is("XHTML Test Page"));
-    assertThat(secondDriver.getTitle(), is("We Leave From Here"));
-
-    // We only need to quit the second driver if the test passes
-    secondDriver.quit();
+      assertThat(driver.getTitle(), is("XHTML Test Page"));
+      assertThat(secondDriver.getTitle(), is("We Leave From Here"));
+    } finally {
+      secondDriver.quit();
+    }
   }
 
   @Test
   public void shouldBeAbleToStartFromAUniqueProfile() {
     FirefoxProfile profile = new FirefoxProfile();
-
-    try {
-      WebDriver secondDriver = new FirefoxDriver(profile);
-      secondDriver.quit();
-    } catch (Exception e) {
-      e.printStackTrace();
-      fail("Expected driver to be created successfully");
-    }
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
   }
 
   @Test
@@ -280,17 +266,11 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     FirefoxProfile profile = new FirefoxProfile();
     profile.setPreference("browser.startup.homepage", pages.formPage);
 
-    try {
-      WebDriver secondDriver = new FirefoxDriver(profile);
-      new WebDriverWait(secondDriver, 30).until(titleIs("We Leave From Here"));
-      String title = secondDriver.getTitle();
-      secondDriver.quit();
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
+    new WebDriverWait(localDriver, 30).until(titleIs("We Leave From Here"));
+    String title = localDriver.getTitle();
 
-      assertThat(title, is("We Leave From Here"));
-    } catch (Exception e) {
-      e.printStackTrace();
-      fail("Expected driver to be created successfully");
-    }
+    assertThat(title, is("We Leave From Here"));
   }
 
   @Test
@@ -301,29 +281,16 @@ public class FirefoxDriverTest extends JUnit4TestBase {
 
     profile.setPreference("webdriver.log.file", logFile.getAbsolutePath());
 
-    try {
-      WebDriver secondDriver = new FirefoxDriver(profile);
-      assertTrue("log file should exist", logFile.exists());
-      secondDriver.quit();
-    } catch (Exception e) {
-      e.printStackTrace();
-      fail("Expected driver to be created successfully");
-    }
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
+    assertTrue("log file should exist", logFile.exists());
   }
 
   @Test
   public void shouldBeAbleToStartFromProfileWithLogFileSetToStdout() throws IOException {
     FirefoxProfile profile = new FirefoxProfile();
-
     profile.setPreference("webdriver.log.file", "/dev/stdout");
 
-    try {
-      WebDriver secondDriver = new FirefoxDriver(profile);
-      secondDriver.quit();
-    } catch (Exception e) {
-      e.printStackTrace();
-      fail("Expected driver to be created successfully");
-    }
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
   }
 
   @Test
@@ -331,8 +298,7 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     FirefoxProfile profile = new ProfilesIni().getProfile("default");
     assumeNotNull(profile);
 
-    WebDriver firefox = new FirefoxDriver(profile);
-    firefox.quit();
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
   }
 
   @Test(timeout = 60000)
@@ -349,19 +315,12 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     FirefoxBinary binary = new FirefoxBinary();
     binary.addCommandLineOptions("-width", "800", "-height", "600");
 
-    FirefoxDriver driver2 = null;
-    try {
-      driver2 = new FirefoxDriver(new FirefoxOptions().setBinary(binary));
-      Dimension size = driver2.manage().window().getSize();
-      assertThat(size.width, greaterThanOrEqualTo(800));
-      assertThat(size.width, lessThan(850));
-      assertThat(size.height, greaterThanOrEqualTo(600));
-      assertThat(size.height, lessThan(650));
-    } finally {
-      if (driver2 != null) {
-        driver2.quit();
-      }
-    }
+    localDriver = new FirefoxDriver(new FirefoxOptions().setBinary(binary));
+    Dimension size = localDriver.manage().window().getSize();
+    assertThat(size.width, greaterThanOrEqualTo(800));
+    assertThat(size.width, lessThan(850));
+    assertThat(size.height, greaterThanOrEqualTo(600));
+    assertThat(size.height, lessThan(650));
   }
 
 
@@ -370,19 +329,9 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     FirefoxProfile profile = new FirefoxProfile();
     profile.setAcceptUntrustedCertificates(false);
 
-    FirefoxDriver secondDriver = null;
-    try {
-      secondDriver = new FirefoxDriver(profile);
-      Capabilities caps = secondDriver.getCapabilities();
-      assertFalse(caps.is(ACCEPT_SSL_CERTS));
-    } catch (Exception e) {
-      fail("Creating driver with untrusted certificates set to false failed. " +
-           Throwables.getStackTraceAsString(e));
-    } finally {
-      if (secondDriver != null) {
-        secondDriver.quit();
-      }
-    }
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
+    Capabilities caps = localDriver.getCapabilities();
+    assertFalse(caps.is(ACCEPT_SSL_CERTS));
   }
 
   @Test
@@ -391,13 +340,8 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     profile.setPreference("browser.startup.page", "1");
     profile.setPreference("browser.startup.homepage", pages.javascriptPage);
 
-    final WebDriver driver2 = new FirefoxDriver(profile);
-
-    try {
-      new WebDriverWait(driver2, 30).until(urlToBe(pages.javascriptPage));
-    } finally {
-      driver2.quit();
-    }
+    localDriver = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
+    new WebDriverWait(localDriver, 30).until(urlToBe(pages.javascriptPage));
   }
 
   private ExpectedCondition<Boolean> urlToBe(final String expectedUrl) {
@@ -405,7 +349,7 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   }
 
   @Test
-  @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/mozilla/geckodriver/issues/519")
+  @Ignore(value = MARIONETTE, issue = "https://github.com/mozilla/geckodriver/issues/273")
   public void canAccessUrlProtectedByBasicAuth() {
     driver.get(appServer.whereIsWithCredentials("basicAuth", "test", "test"));
     assertEquals("authorized", driver.findElement(By.tagName("h1")).getText());
@@ -488,17 +432,15 @@ public class FirefoxDriverTest extends JUnit4TestBase {
       for (int i = 0; i < numThreads; ++i) {
         final WebDriver driver = (i == 0 ? super.driver : new FirefoxDriver());
         drivers[i] = driver;
-        workers.add(new Worker() {
-          public void run() throws Exception {
-            driver.get(pages.formPage);
-            WebElement inputField = driver.findElement(By.id("working"));
-            for (int i = 0; i < numRoundsPerThread; ++i) {
-              String s = randomString();
-              inputField.clear();
-              inputField.sendKeys(s);
-              String value = inputField.getAttribute("value");
-              assertThat(value, is(s));
-            }
+        workers.add(() -> {
+          driver.get(pages.formPage);
+          WebElement inputField = driver.findElement(By.id("working"));
+          for (int i1 = 0; i1 < numRoundsPerThread; ++i1) {
+            String s = randomString();
+            inputField.clear();
+            inputField.sendKeys(s);
+            String value = inputField.getAttribute("value");
+            assertThat(value, is(s));
           }
         });
       }
@@ -526,8 +468,8 @@ public class FirefoxDriverTest extends JUnit4TestBase {
     WebDriver two = null;
 
     try {
-      one = new FirefoxDriver(profile);
-      two = new FirefoxDriver(profile);
+      one = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
+      two = new FirefoxDriver(new FirefoxOptions().setProfile(profile));
 
       // If we get this far, then both firefoxes have started. If this test
       // two browsers will start, but the second won't have a valid port and an
@@ -541,8 +483,8 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   // See http://code.google.com/p/selenium/issues/detail?id=1774
   @Test
   public void canStartFirefoxDriverWithSubclassOfFirefoxProfile() {
-    new FirefoxDriver(new CustomFirefoxProfile()).quit();
-    new FirefoxDriver(new FirefoxProfile() {}).quit();
+    new FirefoxDriver(new FirefoxOptions().setProfile(new CustomFirefoxProfile())).quit();
+    new FirefoxDriver(new FirefoxOptions().setProfile(new FirefoxProfile() {})).quit();
   }
 
   /**
@@ -556,11 +498,6 @@ public class FirefoxDriverTest extends JUnit4TestBase {
         ((JavascriptExecutor) driver).executeScript("return typeof Sizzle == 'undefined';"));
   }
 
-  @Test
-  @NeedsLocalEnvironment
-  public void constructorArgsAreNullable() {
-    new SynthesizedFirefoxDriver((Capabilities) null).quit();
-  }
   /**
    * Tests that we do not pollute the global namespace with Sizzle in Firefox 3.
    */
@@ -574,27 +511,22 @@ public class FirefoxDriverTest extends JUnit4TestBase {
   }
 
   @Test
+  @NotYetImplemented(value = MARIONETTE, reason = "https://bugzilla.mozilla.org/show_bug.cgi?id=1415067")
   public void testFirefoxCanNativelyClickOverlappingElements() {
-    DesiredCapabilities capabilities = new DesiredCapabilities();
-    capabilities.setCapability(CapabilityType.OVERLAPPING_CHECK_DISABLED, true);
-    WebDriver secondDriver = new FirefoxDriver(capabilities);
-    try {
-      secondDriver.get(appServer.whereIs("click_tests/overlapping_elements.html"));
-      secondDriver.findElement(By.id("under")).click();
-      assertEquals(secondDriver.findElement(By.id("log")).getText(),
-                   "Log:\n"
-                   + "mousedown in over (handled by over)\n"
-                   + "mousedown in over (handled by body)\n"
-                   + "mouseup in over (handled by over)\n"
-                   + "mouseup in over (handled by body)\n"
-                   + "click in over (handled by over)\n"
-                   + "click in over (handled by body)");
-    } finally {
-      secondDriver.quit();
-    }
+    FirefoxOptions options = new FirefoxOptions();
+    options.setCapability(CapabilityType.OVERLAPPING_CHECK_DISABLED, true);
+    localDriver = new FirefoxDriver(options);
+    localDriver.get(appServer.whereIs("click_tests/overlapping_elements.html"));
+    localDriver.findElement(By.id("under")).click();
+    assertEquals(localDriver.findElement(By.id("log")).getText(),
+                 "Log:\n"
+                 + "mousedown in over (handled by over)\n"
+                 + "mousedown in over (handled by body)\n"
+                 + "mouseup in over (handled by over)\n"
+                 + "mouseup in over (handled by body)\n"
+                 + "click in over (handled by over)\n"
+                 + "click in over (handled by body)");
   }
-
-
 
   private static class CustomFirefoxProfile extends FirefoxProfile {}
 

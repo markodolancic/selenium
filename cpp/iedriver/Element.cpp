@@ -37,6 +37,7 @@
 #include "Generated/atoms.h"
 #include "Script.h"
 #include "StringUtilities.h"
+#include "VariantUtilities.h"
 
 namespace webdriver {
 
@@ -69,7 +70,12 @@ Element::Element(IHTMLElement* element, HWND containing_window_handle) {
 
   this->element_ = element;
   this->containing_window_handle_ = containing_window_handle;
-  this->last_click_time_ = 0;
+}
+
+Element::Element(IHTMLElement* element, HWND containing_window_handle, const std::string& element_id) {
+  this->element_ = element;
+  this->element_id_ = element_id;
+  this->containing_window_handle_ = containing_window_handle;
 }
 
 Element::~Element(void) {
@@ -79,10 +85,7 @@ Json::Value Element::ConvertToJson() {
   LOG(TRACE) << "Entering Element::ConvertToJson";
 
   Json::Value json_wrapper;
-  // TODO: Remove the "ELEMENT" property once all target bindings 
-  // have been updated to use spec-compliant protocol.
-  json_wrapper["element-6066-11e4-a52e-4f735466cecf"] = this->element_id_;
-  json_wrapper["ELEMENT"] = this->element_id_;
+  json_wrapper[JSON_ELEMENT_PROPERTY_NAME] = this->element_id_;
 
   return json_wrapper;
 }
@@ -242,9 +245,17 @@ int Element::GetClickLocation(const ElementScrollBehavior scroll_behavior,
   return status_code;
 }
 
+int Element::GetStaticClickLocation(LocationInfo* click_location) {
+  std::vector<LocationInfo> frame_locations;
+  LocationInfo element_location = {};
+  int result = this->GetLocation(&element_location, &frame_locations);
+  bool document_contains_frames = frame_locations.size() != 0;
+  *click_location = this->CalculateClickPoint(element_location, document_contains_frames);
+  return result;
+}
+
 int Element::GetAttributeValue(const std::string& attribute_name,
-                               std::string* attribute_value,
-                               bool* value_is_null) {
+                               VARIANT* attribute_value) {
   LOG(TRACE) << "Entering Element::GetAttributeValue";
 
   std::wstring wide_attribute_name = StringUtilities::ToWString(attribute_name);
@@ -265,9 +276,50 @@ int Element::GetAttributeValue(const std::string& attribute_name,
   status_code = script_wrapper.Execute();
   
   if (status_code == WD_SUCCESS) {
-    *value_is_null = !script_wrapper.ConvertResultToString(attribute_value);
+    *attribute_value = script_wrapper.result();
   } else {
     LOG(WARN) << "Failed to determine element attribute";
+  }
+
+  return WD_SUCCESS;
+}
+
+int Element::GetPropertyValue(const std::string& property_name,
+                              VARIANT* property_value) {
+  LOG(TRACE) << "Entering Element::GetPropertyValue";
+
+  std::wstring wide_property_name = StringUtilities::ToWString(property_name);
+  int status_code = WD_SUCCESS;
+
+  LPOLESTR property_name_pointer = reinterpret_cast<LPOLESTR>(const_cast<wchar_t*>(wide_property_name.data()));
+  DISPID dispid_property;
+  HRESULT hr = this->element_->GetIDsOfNames(IID_NULL,
+                                             &property_name_pointer,
+                                             1,
+                                             LOCALE_USER_DEFAULT,
+                                             &dispid_property);
+  if (FAILED(hr)) {
+    LOGHR(WARN, hr) << "Unable to get dispatch ID (dispid) for property "
+                    << property_name;
+    property_value->vt = VT_EMPTY;
+    return WD_SUCCESS;
+  }
+
+  // get the value of eval result
+  DISPPARAMS no_args_dispatch_parameters = { 0 };
+  hr = this->element_->Invoke(dispid_property,
+                              IID_NULL,
+                              LOCALE_USER_DEFAULT,
+                              DISPATCH_PROPERTYGET,
+                              &no_args_dispatch_parameters,
+                              property_value,
+                              NULL,
+                              NULL);
+  if (FAILED(hr)) {
+    LOGHR(WARN, hr) << "Unable to get result for property "
+                    << property_name;
+    property_value->vt = VT_EMPTY;
+    return WD_SUCCESS;
   }
 
   return WD_SUCCESS;
@@ -293,13 +345,13 @@ int Element::GetCssPropertyValue(const std::string& property_name,
   status_code = script_wrapper.Execute();
 
   if (status_code == WD_SUCCESS) {
-    std::string raw_value = "";
-    script_wrapper.ConvertResultToString(&raw_value);
+    std::wstring raw_value(script_wrapper.result().bstrVal);
+    std::string value = StringUtilities::ToString(raw_value);
     std::transform(raw_value.begin(),
-                    raw_value.end(),
-                    raw_value.begin(),
-                    tolower);
-    *property_value = raw_value;
+                   raw_value.end(),
+                   raw_value.begin(),
+                   tolower);
+    *property_value = value;
   } else {
     LOG(WARN) << "Failed to get value of CSS property";
   }
@@ -390,8 +442,8 @@ bool Element::IsHiddenByOverflow() {
   script_wrapper.AddArgument(this->element_);
   int status_code = script_wrapper.Execute();
   if (status_code == WD_SUCCESS) {
-    std::string overflow_state = "";
-    script_wrapper.ConvertResultToString(&overflow_state);
+    std::wstring raw_overflow_state(script_wrapper.result().bstrVal);
+    std::string overflow_state = StringUtilities::ToString(raw_overflow_state);
     isOverflow = (overflow_state == "scroll");
   } else {
     LOG(WARN) << "Unable to determine is element hidden by overflow";
@@ -400,7 +452,8 @@ bool Element::IsHiddenByOverflow() {
   return isOverflow;
 }
 
-bool Element::IsLocationVisibleInFrames(const LocationInfo location, const std::vector<LocationInfo> frame_locations) {
+bool Element::IsLocationVisibleInFrames(const LocationInfo location,
+                                        const std::vector<LocationInfo> frame_locations) {
   std::vector<LocationInfo>::const_iterator iterator = frame_locations.begin();
   for (; iterator != frame_locations.end(); ++iterator) {
     if (location.x < iterator->x || 
@@ -1034,6 +1087,18 @@ bool Element::IsAttachedToDom() {
         return contains == VARIANT_TRUE;
       }
     }
+  }
+  return false;
+}
+
+bool Element::IsDocumentFocused(IHTMLDocument2* focused_doc) {
+  CComPtr<IDispatch> parent_doc_dispatch;
+  this->element_->get_document(&parent_doc_dispatch);
+
+  if (parent_doc_dispatch.IsEqualObject(focused_doc)) {
+    return true;
+  } else {
+    LOG(WARN) << "Found managed element's document is not currently focused";
   }
   return false;
 }

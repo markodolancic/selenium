@@ -19,6 +19,7 @@
 #include "../Browser.h"
 #include "../Element.h"
 #include "../IECommandExecutor.h"
+#include "../VariantUtilities.h"
 
 namespace webdriver {
 
@@ -35,10 +36,10 @@ void GetElementAttributeCommandHandler::ExecuteInternal(
   ParametersMap::const_iterator id_parameter_iterator = command_parameters.find("id");
   ParametersMap::const_iterator name_parameter_iterator = command_parameters.find("name");
   if (id_parameter_iterator == command_parameters.end()) {
-    response->SetErrorResponse(400, "Missing parameter in URL: id");
+    response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Missing parameter in URL: id");
     return;
   } else if (name_parameter_iterator == command_parameters.end()) {
-    response->SetErrorResponse(400, "Missing parameter in URL: name");
+    response->SetErrorResponse(ERROR_INVALID_ARGUMENT, "Missing parameter in URL: name");
     return;
   } else {
     std::string element_id = id_parameter_iterator->second.asString();
@@ -47,32 +48,33 @@ void GetElementAttributeCommandHandler::ExecuteInternal(
     BrowserHandle browser_wrapper;
     int status_code = executor.GetCurrentBrowser(&browser_wrapper);
     if (status_code != WD_SUCCESS) {
-      response->SetErrorResponse(status_code, "Unable to get browser");
+      response->SetErrorResponse(ERROR_NO_SUCH_WINDOW, "Unable to get browser");
       return;
     }
 
     ElementHandle element_wrapper;
     status_code = this->GetElement(executor, element_id, &element_wrapper);
     if (status_code == WD_SUCCESS) {
-      std::string value = "";
-      bool is_null;
+      CComVariant attribute_value;
+      IECommandExecutor& mutable_executor = const_cast<IECommandExecutor&>(executor);
+      Json::Value value;
       status_code = element_wrapper->GetAttributeValue(name,
-                                                        &value,
-                                                        &is_null);
+                                                       &attribute_value);
+      VariantUtilities::VariantAsJsonValue(mutable_executor.element_manager(),
+                                           attribute_value,
+                                           &value);
       if (status_code != WD_SUCCESS) {
         response->SetErrorResponse(status_code, "Unable to get attribute");
         return;
       } else {
-        if (is_null) {
-          response->SetSuccessResponse(Json::Value::null);
-          return;
-        } else {
-          response->SetSuccessResponse(value);
-          return;
-        }
+        response->SetSuccessResponse(value);
+        return;
       }
+    } else if (status_code == ENOSUCHELEMENT) {
+      response->SetErrorResponse(ERROR_NO_SUCH_ELEMENT, "Invalid internal element ID requested: " + element_id);
+      return;
     } else {
-      response->SetErrorResponse(status_code, "Element is no longer valid");
+      response->SetErrorResponse(ERROR_STALE_ELEMENT_REFERENCE, "Element is no longer valid");
       return;
     }
   }

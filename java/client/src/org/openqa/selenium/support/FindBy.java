@@ -17,10 +17,13 @@
 
 package org.openqa.selenium.support;
 
+import org.openqa.selenium.By;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.Field;
 
 /**
  * <p>Used to mark a field on a Page Object to indicate an alternative mechanism for locating the
@@ -51,6 +54,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.TYPE})
+@PageFactoryFinder(FindBy.FindByBuilder.class)
 public @interface FindBy {
   How how() default How.UNSET;
 
@@ -71,4 +75,21 @@ public @interface FindBy {
   String partialLinkText() default "";
 
   String xpath() default "";
+
+  public static class FindByBuilder extends AbstractFindByBuilder {
+    public By buildIt(Object annotation, Field field) {
+      FindBy findBy = (FindBy) annotation;
+      assertValidFindBy(findBy);
+
+      By ans = buildByFromShortFindBy(findBy);
+      if (ans == null) {
+        ans = buildByFromLongFindBy(findBy);
+      }
+
+      return ans;
+
+    }
+
+  }
+
 }

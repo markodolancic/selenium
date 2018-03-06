@@ -1,5 +1,3 @@
-# encoding: utf-8
-#
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'websocket'
-require 'pathname'
+require 'selenium/webdriver/safari/driver'
+require 'selenium/webdriver/safari/service'
 
 module Selenium
   module WebDriver
@@ -40,7 +38,7 @@ module Selenium
         def path
           @path ||= '/Applications/Safari.app/Contents/MacOS/Safari'
           return @path if File.file?(@path) && File.executable?(@path)
-          raise Error::WebDriverError, 'Safari is only supported on Mac' unless Platform.os == :macosx
+          raise Error::WebDriverError, 'Safari is only supported on Mac' unless Platform.os.mac?
           raise Error::WebDriverError, 'Unable to find Safari'
         end
 
@@ -56,6 +54,3 @@ module Selenium
     end # Safari
   end # WebDriver
 end # Selenium
-
-require 'selenium/webdriver/safari/bridge'
-require 'selenium/webdriver/safari/service'

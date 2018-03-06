@@ -24,6 +24,7 @@ import static org.openqa.selenium.Platform.MAC;
 import static org.openqa.selenium.Platform.UNIX;
 import static org.openqa.selenium.Platform.WINDOWS;
 import static org.openqa.selenium.os.WindowsUtils.getPathsInProgramFiles;
+import org.openqa.selenium.remote.service.DriverService;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -138,6 +139,17 @@ public class FirefoxBinary {
     executable = new Executable(pathToFirefoxBinary);
   }
 
+  /**
+   * deprecated Use {@link DriverService.Builder#withEnvironment(Map)} instead:
+   * <p>
+   * new FirefoxDriver(
+   *   new GeckoDriverService.Builder()
+   *     .usingDriverExecutable(new File("path/to/geckodriver.exe"))
+   *     .usingFirefoxBinary(new FirefoxBinary(new File("path/to/firefox.exe")))
+   *     .withEnvironment(ImmutableMap.of("DISPLAY", "0:0"))
+   *     .build());
+   */
+  @Deprecated
   public void setEnvironmentProperty(String propertyName, String value) {
     if (propertyName == null || value == null) {
       throw new WebDriverException(
@@ -193,7 +205,7 @@ public class FirefoxBinary {
     startFirefoxProcess(command);
   }
 
-  protected void startFirefoxProcess(CommandLine command) throws IOException {
+  protected void startFirefoxProcess(CommandLine command) {
     process = command;
     command.executeAsync();
   }
@@ -206,6 +218,10 @@ public class FirefoxBinary {
     return executable.getPath();
   }
 
+  /**
+   * @deprecated No replacement. Environment should be configured in {@link DriverService} instance.
+   */
+  @Deprecated
   public Map<String, String> getExtraEnv() {
     return Collections.unmodifiableMap(extraEnv);
   }
@@ -275,12 +291,8 @@ public class FirefoxBinary {
   /**
    * Waits for the process to execute, returning the command output taken from the profile's
    * execution.
-   *
-   * @throws InterruptedException if we are interrupted while waiting for the process to launch
-   * @throws IOException if there is a problem with reading the input stream of the launching
-   *         process
    */
-  public void waitFor() throws InterruptedException, IOException {
+  public void waitFor() {
     process.waitFor();
   }
 
@@ -289,12 +301,9 @@ public class FirefoxBinary {
    * execution.
    *
    * @param timeout the maximum time to wait in milliseconds
-   * @throws InterruptedException if we are interrupted while waiting for the process to launch
-   * @throws IOException if there is a problem with reading the input stream of the launching
-   *         process
    */
 
-  public void waitFor(long timeout) throws InterruptedException, IOException {
+  public void waitFor(long timeout) {
 	  process.waitFor(timeout);
   }
 
@@ -302,9 +311,8 @@ public class FirefoxBinary {
    * Gets all console output of the binary. Output retrieval is non-destructive and non-blocking.
    *
    * @return the console output of the executed binary.
-   * @throws IOException IO exception reading from the output stream of the firefox process
    */
-  public String getConsoleOutput() throws IOException {
+  public String getConsoleOutput() {
     if (process == null) {
       return null;
     }
@@ -322,6 +330,10 @@ public class FirefoxBinary {
   @Override
   public String toString() {
     return "FirefoxBinary(" + executable.getPath() + ")";
+  }
+
+  public String toJson() {
+    return executable.getPath();
   }
 
   public void setOutputWatcher(OutputStream stream) {

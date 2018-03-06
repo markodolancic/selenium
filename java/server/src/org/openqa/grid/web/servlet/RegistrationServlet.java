@@ -18,6 +18,7 @@
 package org.openqa.grid.web.servlet;
 
 import com.google.common.collect.Lists;
+import com.google.common.io.CharStreams;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -26,11 +27,12 @@ import com.google.gson.JsonParser;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.common.exception.GridConfigurationException;
 import org.openqa.grid.internal.BaseRemoteProxy;
-import org.openqa.grid.internal.Registry;
+import org.openqa.grid.internal.GridRegistry;
 import org.openqa.grid.internal.RemoteProxy;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
+import org.openqa.selenium.MutableCapabilities;
+import org.openqa.selenium.json.Json;
 import org.openqa.selenium.remote.DesiredCapabilities;
-import org.openqa.selenium.remote.JsonToBeanConverter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -53,35 +55,33 @@ public class RegistrationServlet extends RegistryBasedServlet {
     this(null);
   }
 
-  public RegistrationServlet(Registry registry) {
+  public RegistrationServlet(GridRegistry registry) {
     super(registry);
   }
 
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response)
-      throws ServletException, IOException {
+      throws IOException {
     process(request, response);
   }
 
   @Override
   protected void doPost(HttpServletRequest request, HttpServletResponse response)
-      throws ServletException, IOException {
+      throws IOException {
     process(request, response);
   }
 
   protected void process(HttpServletRequest request, HttpServletResponse response)
       throws IOException {
-    BufferedReader rd = new BufferedReader(new InputStreamReader(request.getInputStream()));
-    StringBuilder requestJsonString = new StringBuilder();
-    String line;
-    while ((line = rd.readLine()) != null) {
-      requestJsonString.append(line);
+    String requestJsonString;
+
+    try (BufferedReader rd = new BufferedReader(new InputStreamReader(request.getInputStream()))) {
+      requestJsonString = CharStreams.toString(rd);
     }
-    rd.close();
-    log.fine("getting the following registration request  : " + requestJsonString.toString());
+    log.fine("getting the following registration request  : " + requestJsonString);
 
     // getting the settings from the registration
-    JsonObject json = new JsonParser().parse(requestJsonString.toString()).getAsJsonObject();
+    JsonObject json = new JsonParser().parse(requestJsonString).getAsJsonObject();
 
     if (!json.has("configuration")) {
       // bad request. there must be a configuration for the proxy
@@ -105,11 +105,10 @@ public class RegistrationServlet extends RegistryBasedServlet {
 
     reply(response, "ok");
 
-    new Thread(new Runnable() {  // Thread safety reviewed
-      public void run() {
-        getRegistry().add(proxy);
-        log.fine("proxy added " + proxy.getRemoteHost());
-      }
+    // Thread safety reviewed
+    new Thread(() -> {
+      getRegistry().add(proxy);
+      log.fine("proxy added " + proxy.getRemoteHost());
     }).start();
   }
 
@@ -173,11 +172,12 @@ public class RegistrationServlet extends RegistryBasedServlet {
     if (json.has("capabilities")) {
       configuration.capabilities.clear();
       JsonArray capabilities = json.get("capabilities").getAsJsonArray();
+      Json converter = new Json();
       for (int i = 0; i < capabilities.size(); i++) {
-        DesiredCapabilities cap = new JsonToBeanConverter()
-          .convert(DesiredCapabilities.class, capabilities.get(i));
+        MutableCapabilities cap = converter.toType(capabilities.get(i), DesiredCapabilities.class);
         configuration.capabilities.add(cap);
       }
+      configuration.fixUpCapabilities();
     }
   }
 

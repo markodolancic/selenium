@@ -17,9 +17,6 @@
 
 package org.openqa.selenium.firefox;
 
-import static org.openqa.selenium.firefox.FirefoxDriver.ACCEPT_UNTRUSTED_CERTIFICATES;
-import static org.openqa.selenium.firefox.FirefoxDriver.ASSUME_UNTRUSTED_ISSUER;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.io.Resources;
@@ -90,14 +87,12 @@ public class FirefoxProfile {
     if (prefsInModel.exists()) {
       StringReader reader = new StringReader("{\"frozen\": {}, \"mutable\": {}}");
       Preferences existingPrefs = new Preferences(reader, prefsInModel);
-      acceptUntrustedCerts = getBooleanPreference(existingPrefs, ACCEPT_UNTRUSTED_CERTS_PREF,
-                                                  ACCEPT_UNTRUSTED_CERTIFICATES);
-      untrustedCertIssuer = getBooleanPreference(existingPrefs, ASSUME_UNTRUSTED_ISSUER_PREF,
-                                                 ASSUME_UNTRUSTED_ISSUER);
+      acceptUntrustedCerts = getBooleanPreference(existingPrefs, ACCEPT_UNTRUSTED_CERTS_PREF, true);
+      untrustedCertIssuer = getBooleanPreference(existingPrefs, ASSUME_UNTRUSTED_ISSUER_PREF, true);
       existingPrefs.addTo(additionalPrefs);
     } else {
-      acceptUntrustedCerts = ACCEPT_UNTRUSTED_CERTIFICATES;
-      untrustedCertIssuer = ASSUME_UNTRUSTED_ISSUER;
+      acceptUntrustedCerts = true;
+      untrustedCertIssuer = true;
     }
 
     // This is not entirely correct but this is not stored in the profile
@@ -308,21 +303,6 @@ public class FirefoxProfile {
     }
   }
 
-  @Deprecated
-  /**
-   * @deprecated "Native" events are not supported in FirefoxDriver anymore
-   */
-  public boolean areNativeEventsEnabled() {
-    return false;
-  }
-
-  @Deprecated
-  /**
-   * @deprecated "Native" events are not supported in FirefoxDriver anymore
-   */
-  public void setEnableNativeEvents(boolean enableNativeEvents) {
-  }
-
   /**
    * Returns whether the no focus library should be loaded for Firefox profiles launched on Linux,
    * even if native events are disabled.
@@ -376,7 +356,12 @@ public class FirefoxProfile {
   }
 
   public String toJson() throws IOException {
-    return Zip.zip(layoutOnDisk());
+    File file = layoutOnDisk();
+    try {
+      return Zip.zip(file);
+    } finally {
+      clean(file);
+    }
   }
 
   public static FirefoxProfile fromJson(String json) throws IOException {

@@ -17,23 +17,33 @@
 
 package org.openqa.grid.internal.utils.configuration;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.annotations.Expose;
 
-import com.beust.jcommander.Parameter;
-
-import org.openqa.grid.common.JSONConfigurationUtils;
 import org.openqa.grid.common.exception.GridConfigurationException;
 
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class StandaloneConfiguration {
-  public static final String DEFAULT_STANDALONE_CONFIG_FILE = "defaults/DefaultStandalone.json";
+  public static final String DEFAULT_STANDALONE_CONFIG_FILE = "org/openqa/grid/common/defaults/DefaultStandalone.json";
 
   /*
    * IMPORTANT - Keep these constant values in sync with the ones specified in
@@ -43,82 +53,48 @@ public class StandaloneConfiguration {
   /**
    * Default client timeout
    */
+  @VisibleForTesting
   static final Integer DEFAULT_TIMEOUT = 1800;
 
   /**
    * Default browser timeout
    */
+  @VisibleForTesting
   static final Integer DEFAULT_BROWSER_TIMEOUT = 0;
 
   /**
    * Default standalone role
    */
+  @VisibleForTesting
   static final String DEFAULT_ROLE = "standalone";
 
   /**
    * Default standalone port
    */
+  @VisibleForTesting
   static final Integer DEFAULT_PORT = 4444;
 
   /**
    * Default state of LogeLevel.FINE log output toggle
    */
+  @VisibleForTesting
   static final Boolean DEFAULT_DEBUG_TOGGLE = false;
 
-  /*
-   * config parameters which do not serialize or deserialize to/from json
-   */
-
-  @Parameter(
-      names = {"--version", "-version"},
-      description = "Displays the version and exits."
-  )
-  // initially defaults to false from boolean primitive type
-  public boolean version;
 
   /*
    * config parameters which do not serialize to json
    */
-
   @Expose( serialize = false )
-  @Parameter(
-    names = {"-avoidProxy"},
-    description = "DO NOT USE: Hack to allow selenium 3.0 server run in SauceLabs",
-    hidden = true
-  )
   // initially defaults to false from boolean primitive type
   private boolean avoidProxy;
 
   @Expose( serialize = false )
-  @Parameter(
-    names = "-browserSideLog",
-    description = "DO NOT USE: Provided for compatibility with 2.0",
-    hidden = true
-  )
   // initially defaults to false from boolean primitive type
   private boolean browserSideLog;
 
   @Expose( serialize = false )
-  @Parameter(
-    names = "-captureLogsOnQuit",
-    description = "DO NOT USE: Provided for compatibility with 2.0",
-    hidden = true
-  )
   // initially defaults to false from boolean primitive type
   private boolean captureLogsOnQuit;
-
-  @Expose( serialize = false )
-  @Parameter(
-    names = {"--help", "-help", "-h"},
-    help = true,
-    hidden = true,
-    description = "Displays this help."
-  )
-  /**
-   * Whether help or usage() is requested. Default {@code false}.
-   */
-  // initially defaults to false from boolean primitive type
-  public boolean help;
 
   /*
    * config parameters which serialize and deserialize to/from json
@@ -128,71 +104,42 @@ public class StandaloneConfiguration {
    * Browser timeout. Default 0 (indefinite wait).
    */
   @Expose
-  @Parameter(
-    names = "-browserTimeout",
-    description = "<Integer> in seconds : number of seconds a browser session is allowed to hang while a WebDriver command is running (example: driver.get(url)). If the timeout is reached while a WebDriver command is still processing, the session will quit. Minimum value is 60. An unspecified, zero, or negative value means wait indefinitely."
-  )
   public Integer browserTimeout = DEFAULT_BROWSER_TIMEOUT;
 
   /**
    * Enable {@code LogLevel.FINE} log messages. Default {@code false}.
    */
   @Expose
-  @Parameter(
-    names = "-debug",
-    description = "<Boolean> : enables LogLevel.FINE.",
-    arity = 1
-  )
   public Boolean debug = DEFAULT_DEBUG_TOGGLE;
 
   /**
    *   Max threads for Jetty. Defaults to {@code null}.
    */
   @Expose
-  @Parameter(
-    names = {"-jettyThreads", "-jettyMaxThreads"},
-    description = "<Integer> : max number of threads for Jetty. An unspecified, zero, or negative value means the Jetty default value (200) will be used."
-  )
   public Integer jettyMaxThreads;
 
   /**
    *   Filename to use for logging. Defaults to {@code null}.
    */
   @Expose
-  @Parameter(
-    names = "-log",
-    description = "<String> filename : the filename to use for logging. If omitted, will log to STDOUT"
-  )
   public String log;
 
   /**
    * Port to bind to. Default determined by configuration type.
    */
   @Expose
-  @Parameter(
-    names = {"-port"},
-    description = "<Integer> : the port number the server will use."
-  )
   public Integer port = DEFAULT_PORT;
 
   /**
    * Server role. Default determined by configuration type.
    */
   @Expose
-  @Parameter(
-    names = "-role",
-    description = "<String> options are [hub], [node], or [standalone]."
-  )
   public String role = DEFAULT_ROLE;
 
   /**
    * Client timeout. Default 1800 sec.
    */
   @Expose
-  @Parameter(
-    names = {"-timeout", "-sessionTimeout"},
-    description = "<Integer> in seconds : Specifies the timeout before the server automatically kills a session that hasn't had any activity in the last X seconds. The test slot will then be released for another test to use. This is typically used to take care of client crashes. For grid hub/node roles, cleanUpCycle must also be set."
-  )
   public Integer timeout = DEFAULT_TIMEOUT;
 
   /**
@@ -206,7 +153,7 @@ public class StandaloneConfiguration {
    * @param filePath node config json file to load configuration from
    */
   public static StandaloneConfiguration loadFromJSON(String filePath) {
-    return loadFromJSON(JSONConfigurationUtils.loadJSON(filePath));
+    return loadFromJSON(loadJSONFromResourceOrFile(filePath));
   }
 
   /**
@@ -226,7 +173,6 @@ public class StandaloneConfiguration {
 
   /**
    * copy another configuration's values into this one if they are set.
-   * @param other
    */
   public void merge(StandaloneConfiguration other) {
     if (other == null) {
@@ -242,7 +188,8 @@ public class StandaloneConfiguration {
     if (isMergeAble(other.timeout, timeout)) {
       timeout = other.timeout;
     }
-    // role, port, log, debug, version, and help are not merged, they are only consumed by the immediately running node and can't affect a remote
+    // role, port, log, debug, version, enablePassThrough, and help are not merged, they are only consumed by the
+    // immediately running process and should never affect a remote
   }
 
   /**
@@ -273,11 +220,11 @@ public class StandaloneConfiguration {
     }
 
     if (target instanceof Collection) {
-      return !((Collection) other).isEmpty();
+      return !((Collection<?>) other).isEmpty();
     }
 
     if (target instanceof Map) {
-      return !((Map) other).isEmpty();
+      return !((Map<?, ?>) other).isEmpty();
     }
 
     return true;
@@ -287,7 +234,6 @@ public class StandaloneConfiguration {
     StringBuilder sb = new StringBuilder();
     sb.append(toString(format, "browserTimeout", browserTimeout));
     sb.append(toString(format, "debug", debug));
-    sb.append(toString(format, "help", help));
     sb.append(toString(format, "jettyMaxThreads", jettyMaxThreads));
     sb.append(toString(format, "log", log));
     sb.append(toString(format, "port", port));
@@ -303,16 +249,16 @@ public class StandaloneConfiguration {
 
   public StringBuilder toString(String format, String name, Object value) {
     StringBuilder sb = new StringBuilder();
-    List iterator;
+    List<?> iterator;
     if (value instanceof List) {
-      iterator = (List)value;
+      iterator = (List<?>)value;
     } else {
       iterator = Arrays.asList(value);
     }
     for (Object v : iterator) {
       if (v != null &&
-          !(v instanceof Map && ((Map) v).isEmpty()) &&
-          !(v instanceof Collection && ((Collection) v).isEmpty())) {
+          !(v instanceof Map && ((Map<?, ?>) v).isEmpty()) &&
+          !(v instanceof Collection && ((Collection<?>) v).isEmpty())) {
         sb.append(String.format(format, name, v));
       }
     }
@@ -321,7 +267,6 @@ public class StandaloneConfiguration {
 
   /**
    * Return a JsonElement representation of the configuration. Does not serialize nulls.
-   * @return
    */
   public JsonElement toJson() {
     GsonBuilder builder = new GsonBuilder();
@@ -332,5 +277,51 @@ public class StandaloneConfiguration {
 
   protected void addJsonTypeAdapter(GsonBuilder builder) {
     // no default implementation
+  }
+
+  /**
+   * load a JSON file from the resource or file system.
+   *
+   * @param resource file or jar resource location
+   * @return A JsonObject representing the passed resource argument.
+   */
+  protected static JsonObject loadJSONFromResourceOrFile(String resource) {
+    try {
+      return new JsonParser().parse(readFileOrResource(resource)).getAsJsonObject();
+    } catch (JsonSyntaxException e) {
+      throw new GridConfigurationException("Wrong format for the JSON input : " + e.getMessage(), e);
+    }
+  }
+
+  private static String readFileOrResource(String resource) {
+    Stream<Function<String, InputStream>> suppliers = Stream.of(
+        (path) -> {
+          try {
+            return new FileInputStream(path);
+          } catch (FileNotFoundException e) {
+            return null;
+          } },
+        (path) -> Thread.currentThread().getContextClassLoader()
+            .getResourceAsStream("org/openqa/grid/common/" + path),
+        (path) -> Thread.currentThread().getContextClassLoader().getResourceAsStream(path)
+    );
+
+    InputStream in = suppliers
+        .map(supplier -> supplier.apply(resource))
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElseThrow(() -> new RuntimeException(resource + " is not a valid resource."));
+
+    try(BufferedReader buffreader = new BufferedReader(new InputStreamReader(in))) {
+      return buffreader.lines().collect(Collectors.joining("\n"));
+    } catch (IOException e) {
+      throw new GridConfigurationException("Cannot read file or resource " + resource + ", " + e.getMessage(), e);
+    } finally {
+      try {
+        in.close();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
   }
 }
