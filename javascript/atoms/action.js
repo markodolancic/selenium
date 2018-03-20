@@ -89,10 +89,22 @@ bot.action.clear = function(element) {
 
   if (element.value) {
     bot.action.LegacyDevice_.focusOnElement(element);
-    element.value = '';
+    if (goog.userAgent.IE && bot.dom.isInputType(element, 'range')) {
+      var min = element.min ? element.min : 0;
+      var max = element.max ? element.max : 100;
+      element.value = (max < min) ? min : min + (max - min) / 2;
+    } else {
+      element.value = '';
+    }
     bot.events.fire(element, bot.events.EventType.CHANGE);
     bot.events.fire(element, bot.events.EventType.BLUR);
-    bot.action.LegacyDevice_.focusOnElement(document.body);
+    var body = bot.getDocument().body;
+    if (body) {
+      bot.action.LegacyDevice_.focusOnElement(body);
+    } else {
+      throw new bot.Error(bot.ErrorCode.UNKNOWN_ERROR,
+        'Cannot unfocus element after clearing.');
+    }
   } else if (bot.dom.isElement(element, goog.dom.TagName.INPUT) &&
              (element.getAttribute('type') && element.getAttribute('type').toLowerCase() == "number")) {
     // number input fields that have invalid inputs

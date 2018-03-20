@@ -22,7 +22,8 @@ except ImportError:
 
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
-
+from .service import Service
+from .remote_connection import SafariRemoteConnection
 
 class WebDriver(RemoteWebDriver):
     """
@@ -45,13 +46,17 @@ class WebDriver(RemoteWebDriver):
         """
 
         self._reuse_service = reuse_service
+        self.service = Service(executable_path, port=port, quiet=quiet)
         if not reuse_service:
             self.service.start()
 
+        executor = SafariRemoteConnection(remote_server_addr=self.service.service_url)
+
         RemoteWebDriver.__init__(
             self,
-            command_executor=self.service.service_url,
+            command_executor=executor,
             desired_capabilities=desired_capabilities)
+
         self._is_remote = False
 
     def quit(self):
@@ -66,3 +71,36 @@ class WebDriver(RemoteWebDriver):
         finally:
             if not self._reuse_service:
                 self.service.stop()
+
+    # safaridriver extension commands. The canonical command support matrix is here:
+    # https://developer.apple.com/library/content/documentation/NetworkingInternetWeb/Conceptual/WebDriverEndpointDoc/Commands/Commands.html
+
+    # First available in Safari 11.1 and Safari Technology Preview 41.
+    def set_permission(self, permission, value):
+        if not isinstance(value, bool):
+            raise WebDriverException("Value of a session permission must be set to True or False.")
+
+        payload = {}
+        payload[permission] = value
+        self.execute("SET_PERMISSIONS", {"permissions": payload})
+
+    # First available in Safari 11.1 and Safari Technology Preview 41.
+    def get_permission(self, permission):
+        payload = self.execute("GET_PERMISSIONS")["value"]
+        permissions = payload["permissions"]
+        if not permissions:
+            return None
+
+        if permission not in permissions:
+            return None
+
+        value = permissions[permission]
+        if not isinstance(value, bool):
+            return None
+
+        return value
+
+    # First available in Safari 11.1 and Safari Technology Preview 42.
+    def debug(self):
+        self.execute("ATTACH_DEBUGGER")
+        self.execute_script("debugger;")

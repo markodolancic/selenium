@@ -64,8 +64,11 @@ class Element {
   bool IsSelected(void);
   bool IsInteractable(void);
   bool IsEditable(void);
+  bool IsFocusable(void);
   bool IsAttachedToDom(void);
   bool IsDocumentFocused(IHTMLDocument2* focused_doc);
+  bool IsObscured(LocationInfo* click_location,
+                  std::string* obscuring_element_description);
 
   std::string element_id(void) const { return this->element_id_; }
   IHTMLElement* element(void) { return this->element_; }
